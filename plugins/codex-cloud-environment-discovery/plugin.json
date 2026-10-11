@@ -1,0 +1,28 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "codex-cloud-environment-discovery",
+  "version": "0.1.0",
+  "description": "Independent read-only Root discovery of Legacy and Current Codex Cloud environments with explicit evidence and fail-closed authorization handling.",
+  "author": {
+    "name": "Tungsteno74"
+  },
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Codex Cloud Environment Discovery",
+        "shortDescription": "Read-only Cloud discovery",
+        "longDescription": "Root-level, read-only discovery of Codex Cloud Legacy and current-generation environments. Separates provider availability, authorization, draft state, source evidence, catalog completeness and verified resolution. No task or environment creation. Live integrations require an explicitly authorized provider.",
+        "developerName": "Tungsteno74",
+        "category": "Developer Tools",
+        "capabilities": [
+          "Read-only environment discovery",
+          "Legacy and Current provider isolation",
+          "Verified repository matching",
+          "Partial-result diagnostics"
+        ],
+        "defaultPrompt": "Discover my available Codex Cloud environments before starting tasks, using verified authorized providers. Return IDs, source, configuration state and completeness; never mistake missing authorization for an empty catalog."
+      },
+      "apps": "./.app.json"
+    }
+  }
+}
