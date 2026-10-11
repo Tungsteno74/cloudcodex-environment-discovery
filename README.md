@@ -1,70 +1,85 @@
-# Codex Cloud Environment Discovery
+# CloudCodeX Environment Discovery
 
-Independent, **read-only** plugin for discovering existing Codex Cloud **Legacy** and **Current** environments **from the Root Orchestrator before any task exists**.
+An independent **read-only Codex Cloud environment discovery plugin**, designed for the ChatGPT Root **before** starting Cloud tasks. This repository is separate from [CloudCodeX Windows Bootstrap](https://github.com/Tungsteno74/cloudcodex-windows-bootstrap), which consumes verified environment descriptors only in later, separately authorized workflows.
 
-**Status:** 0.1.1 prototype with tested contracts and runtime; live provider integration is not complete. The package never creates tasks or environments and never accesses stored authentication secrets.
+**Status:** v0.2.0 preview. Domain architecture and offline contracts are implemented and tested; live authenticated catalog integrations remain pending.
 
-## Why a separate plugin?
+## Independent skills
 
-The GSM architecture separates each plugin's source, tests, releases and GitHub history. This repository is intentionally independent of [CloudCodeX Windows Bootstrap](https://github.com/Tungsteno74/cloudcodex-windows-bootstrap). The family catalog is [CloudCodeX Helpers Marketplace](https://github.com/Tungsteno74/cloudcodex-helpers-marketplace), which contains only Git-backed plugin references.
+The plugin contains exactly **two directly discoverable skills**:
 
-In a future fully automated workflow, *optional provisioning* precedes **Discovery**, which resolves a verified environment and supplies its descriptor to a separate, subsequently authorized **Bootstrap/Cloud task**. Discovery itself is **read-only**.
+| Skill | Scope | Main catalog source |
+|---|---|---|
+| **legacy-discovery** | Codex Cloud Legacy | Authenticated native Codex CLI selector; controlled authorized HTTP fallback |
+| **current-discovery** | Current-generation Codex Cloud | Authorized environment-configs catalog with scopes/drafts/pagination |
 
-## Available features
+There is **no mandatory third Root skill**. The plugin entry-point metadata suggests the correct skill based on intent. This is advisory: installing the plugin and providing the right capabilities does not guarantee model routing.
 
-- Typed providers for Legacy and Current catalogs with injectable **already authorized** transports.
-- Normalized EnvironmentDescriptor, account/scope, repository associations and explicit provenance.
-- Four stable operations: list_environments, find_environments, get_environment and resolve_environment.
-- Repository ID matching first, explicit owner/repo matching second; name similarity is an unverified hint.
-- Draft visibility, user/workspace scopes, bounded pagination and cursor-loop handling for Current Cloud.
-- Fail-closed status distinctions: unavailable, unauthorized, forbidden, not_found, invalid_response, partial and empty.
-- Read-only imported catalog snapshots for offline diagnostics; imported data is **never live verified**.
-- Local MCP stdio server implementing the four tools, a CLI and offline tests.
+A request for both generations requires the Root to call **both skills independently** and report the two statuses separately; no implicit mixed catalog is exposed. The Root must preserve read-only constraints.
 
-## Actual limits (do not skip)
+## Architecture
 
-- The native authenticated Legacy CLI selector is interactive. The skill can guide Root terminal tooling to use `codex cloud` and its environment selector, but the packaged local MCP runtime **does not silently scrape that TUI or extract Codex credentials**. Its Legacy live provider requires an externally injected authorized selector reader or transport.
-- Current Cloud GET is an internal client contract, not a public stable API. The local MCP runtime has **no Credential Broker**. Unless an authorized Current transport is injected, it returns unavailable, not an empty catalog. It never retries around Cloudflare or HTTP 401/403.
-- ChatGPT Chat web/mobile does not automatically launch a local stdio MCP process from a marketplace installation. Use an authorized host which supports local plugin processes, or use the skill from the Root with available connectors.
-- Codex Tasks.list_environments is **not** the same as a hosted Cloud environment catalog. Task onboarding messages and cache data are auxiliary hints only.
+Source code and tests are also independently organized:
 
-## Layout
+- plugins/cloudcodex-environment-discovery/runtime/legacy/provider.py
+- plugins/cloudcodex-environment-discovery/runtime/current/provider.py
+- plugins/cloudcodex-environment-discovery/runtime/common/{models,protocols,matching,snapshot,service}.py
+- tests/test_legacy.py and tests/test_current.py, alongside common and MCP regression suites
 
-```text
-plugins/cloudcodex-environment-discovery/
-  plugin.json, .codex-plugin/plugin.json, mcp.json, .app.json
-  skills/cloudcodex-environment-discovery/{SKILL.md,agents/,references/}
-  runtime/{cli.py,server.py,discovery/}
-tests/
-tools/{validate.py,build_release.py}
-docs/
-.github/workflows/validate.yml
-```
+Legacy retirement therefore only affects its skill, provider, tests, MCP registration and packaging metadata. It **does not require modifying Current's provider or tests**. Shared types, repository association and response semantics are cloud-generation agnostic.
 
-## Development and verification
+## Eight read-only MCP operations
 
-Requires Python **3.9+**, no third-party runtime dependencies:
+| Legacy | Current |
+|---|---|
+| list_legacy_environments | list_current_environments |
+| find_legacy_environments | find_current_environments |
+| get_legacy_environment | get_current_environment |
+| resolve_legacy_environment | resolve_current_environment |
 
-```sh
+No operation has cloud_type=all or creates tasks/environments. A connected local MCP host invokes only the corresponding provider through lazy imports.
+
+The equivalent CLI requires an **explicit first positional type**:
+
+~~~shell
+python plugins/cloudcodex-environment-discovery/runtime/cli.py legacy list --pretty
+python plugins/cloudcodex-environment-discovery/runtime/cli.py current list --pretty
+python plugins/cloudcodex-environment-discovery/runtime/cli.py current find --repository owner/repo --pretty
+python plugins/cloudcodex-environment-discovery/runtime/cli.py legacy find --repository owner/repo --snapshot path/to/sanitized-catalog.json
+~~~
+
+Imported snapshots are unverified candidates and never replace live evidence.
+
+## Authorization and current limitations
+
+- The local MCP runtime **does not** obtain credentials or silently access auth.json, cookies, Chrome profiles or account tokens.
+- The Legacy provider accepts an authorized native-selector reader or authorized HTTP transport. The interactive TUI reader is **not yet integrated by default**.
+- The Current provider implements bounded user/workspace pagination and draft handling, but its live transport must be injected by an authorized host.
+- An unavailable, denied or partial catalog is **never** represented as a verified empty inventory.
+- Local MCP stdio is not automatically available in ChatGPT web/mobile merely by publishing or linking this GitHub repository. This plugin is not yet attached as a live tool to the Root Chat.
+- Codex Tasks.list_environments is not an authoritative complete hosted Cloud environment catalog.
+
+Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/SECURITY.md](docs/SECURITY.md) for evidence and security details.
+
+## Development
+
+Python **3.9+**, standard-library runtime; no live token or Cloud call required by tests.
+
+~~~shell
 python -X utf8 tools/validate.py
 python -X utf8 tools/build_release.py
-python plugins/cloudcodex-environment-discovery/runtime/cli.py list --pretty
-```
+python -m unittest discover -s tests -p test_legacy.py -v
+python -m unittest discover -s tests -p test_current.py -v
+~~~
 
-To inspect **explicitly supplied** offline catalog snapshots, not login state:
+The package is produced at dist/cloudcodex-environment-discovery-0.2.0.zip and contains only the one standalone plugin directory.
 
-```sh
-python plugins/cloudcodex-environment-discovery/runtime/cli.py find --cloud-type legacy --repository owner/repo --snapshot-legacy path/to/catalog-example.json --pretty
-```
+## Distribution
 
-The local MCP server can be started by a compatible host using the distributable package's `mcp.json`. It does not obtain authorization by itself.
+Canonical source: [Tungsteno74/cloudcodex-environment-discovery](https://github.com/Tungsteno74/cloudcodex-environment-discovery).
 
-## Installation and distribution
+Its [GSM family marketplace](https://github.com/Tungsteno74/cloudcodex-helpers-marketplace) references source with git-subdir and does not embed implementation code. The marketplace inclusion is staged in a **draft PR**, pending authorized live acceptance before public merge.
 
-Canonical source: `Tungsteno74/cloudcodex-environment-discovery`. The distributable package is under `./plugins/cloudcodex-environment-discovery`. The family marketplace is kept separate according to the existing GSM lifecycle: experimental plugins should be staged privately or as a proposed catalog change until intentionally approved for public distribution.
+Version **0.2.0** replaces the v0.1.1 single Root skill and four mixed tools with two domain skills and eight domain-specific tools; see [migration notes](docs/MIGRATION_0.2.0.md).
 
-The package supports a Git-backed marketplace entry using `source=git-subdir`, its canonical repository URL, `path=./plugins/cloudcodex-environment-discovery`, `ref=main`.
-
-## License
-
-MIT. See [LICENSE](LICENSE).
+Licensed under MIT.

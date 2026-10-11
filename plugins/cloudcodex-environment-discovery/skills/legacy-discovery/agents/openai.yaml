@@ -1,0 +1,4 @@
+interface:
+  display_name: "Legacy Environment Discovery"
+  short_description: "Discover Legacy Codex Cloud"
+  default_prompt: "Use $legacy-discovery to find existing Legacy Codex Cloud environments with verified IDs. Do not create tasks or infer absence from unavailable catalogs."

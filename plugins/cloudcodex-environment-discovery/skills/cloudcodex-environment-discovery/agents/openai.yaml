@@ -1,4 +1,0 @@
-interface:
-  display_name: "Codex Cloud Environment Discovery"
-  short_description: "Read-only Cloud discovery"
-  default_prompt: "Use $cloudcodex-environment-discovery to locate existing Codex Cloud Legacy and current-generation environments, identifying catalog completeness and evidence without creating tasks."

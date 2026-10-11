@@ -1,0 +1,4 @@
+interface:
+  display_name: "Current Cloud Discovery"
+  short_description: "Discover Current Codex Cloud"
+  default_prompt: "Use $current-discovery to discover current-generation Codex Cloud configurations across user/workspace scopes; distinguish drafts and fail closed on authorization errors."

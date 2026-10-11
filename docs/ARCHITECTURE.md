@@ -1,56 +1,75 @@
-# Architecture — Codex Cloud Environment Discovery
+# Architecture — CloudCodeX Environment Discovery
 
-## Scope
+## Position in the CloudCodeX ecosystem
 
-This project implements the separate Root-facing discovery component defined in the 10 October 2026 research note. No modifications to CloudCodeX Windows Bootstrap 0.6.6 Gate 1-2-3 E2E are permitted or necessary.
+The plugin belongs to ChatGPT Chat's **Root Orchestrator** before any Cloud task exists. It is not a Child skill and is independent of the Windows Bootstrap 0.6.6 Gate 1–2–3 validation pipeline.
 
-## Workflow order
-
-```text
-Optional environment provisioning (separate, future)
+~~~text
+Optional independent provisioning workflow (future, outside plugin)
                    |
-                   v
-Codex Cloud Environment Discovery (read-only)
-  +- Legacy provider: native selector / authorized HTTP fallback
-  +- Current provider: authorized catalog / scoped pagination
-  +- GitHub repository matching (optional Root connector)
+            Root chooses target type
+              /              \
+    Legacy skill           Current skill
+        |                      |
+  Legacy provider        Current provider
+        |                      |
+  read-only Legacy        read-only Current
+     catalog                  catalog
+        \                      /
+         Root interprets independent descriptors
                    |
-             verified descriptor?
-                  / \\
-                yes  no
-                 |    +--> candidate set + evidence/authorization gaps
-                 v
-Root selects executor and authorizes a separate task
-                 |
-                 v
-CloudCodeX Windows Bootstrap -> GitHub Actions Windows (when applicable)
-```
+          selected verified environment
+                   |
+       Separate task / Windows Bootstrap workflow
+~~~
 
-The discovery process runs before tasks, so it cannot assume a Child task already exists. A raw task ID, onboarding chat, a zero-task catalog or a cached configuration ID cannot automatically be interpreted as a valid environment descriptor.
+There is **no Root dispatcher skill** and no shared all-types listing. The plugin manifest's defaultPrompt is advisory only; model routing is not a deterministic startup callback.
 
-## Provider contracts
+## Ownership boundaries
 
-Provider.list_environments(account, include_drafts) -> ProviderResult. The facade normalizes account, cloud_type, environment_id, repository identity and explicit evidence. Environment statuses (`execution_ready`) and configuration statuses (`configuration_state`) are distinct.
+| Component | Responsibility | Dependencies |
+|---|---|---|
+| skills/legacy-discovery | Legacy access procedure, CLI selector, zero-task coverage | Legacy tools/provider only |
+| skills/current-discovery | Current catalog, scopes, drafts and onboarding hints | Current tools/provider only |
+| runtime/legacy/provider.py | Authorized Legacy selector/HTTP GET adapter | Generic common protocols/model |
+| runtime/current/provider.py | Authorized Current configuration catalog | Generic common protocols/model |
+| runtime/common | Generic descriptor, provenance, matching, service and snapshots | No Legacy/Current provider |
+| runtime/server.py | MCP JSON-lines protocol + namespaced tool table | Loads chosen provider lazily |
+| runtime/cli.py | Requires explicit domain and operation | Loads chosen domain lazily |
 
-- **Legacy:** authenticated Codex CLI selector is preferred. A typed live provider may be injected by a host capable of safely obtaining catalog records and immutable IDs. HTTP GET fallback requires an explicitly authorized injected transport.
-- **Current:** injected transport performs GET `/v1/environment-configs` using user/workspace scopes, explicit omitDraft flag and bounded cursor pagination. The plugin never obtains or refreshes auth itself.
-- **GitHub:** Root uses its existing GitHub connector when available. ID and explicit owner/repo associations are authoritative; labels can only produce hints. One repository may correspond to many environments.
+The model types do not hardcode the supported set of Cloud generations; the target domain is bound by each provider/service instance. No Current source file imports Legacy.
 
-## Completeness and selection invariant
+## Operations
 
-`catalog_complete=true` if and only if every requested provider/scope is complete **and** live. Imported snapshots and unavailable catalog integrations never set this flag. `resolve_environment` selects only a unique live descriptor, an explicitly verified repository match when requested, and complete catalog evidence. Otherwise it returns candidates with unverified/ambiguous/not_verifiable states.
+Each domain offers list/find/get/resolve:
+- `list_legacy_environments` / `list_current_environments`
+- `find_legacy_environments` / `find_current_environments`
+- `get_legacy_environment` / `get_current_environment`
+- `resolve_legacy_environment` / `resolve_current_environment`
 
-## Architectural boundaries
+A request covering both generations is handled by two independent calls with separate coverage and error reports. No implicit cloud_type=all parameter exists.
 
-- No environment/task creation or GitHub mutations.
-- No direct access to `~/.codex/auth.json`, browser cookies or stored tokens.
-- No silent fallback from 401/403 to another identity, bypass or scraped cookie.
-- No declared absence without catalog completeness proof.
-- Endpoint adapters remain replaceable as internal Codex APIs evolve.
-- Local MCP runtime requires installation/host capability; skill-only discovery remains possible in Root Chat using already connected authorized tools.
+An EnvironmentDescriptor includes cloud_type, immutable ID, account/scope, explicit repository association, draft/publication state, execution-readiness distinct from configuration-state, source/evidence, observation time and matching confidence.
 
-## Project acceptance criteria
+## Fail-closed behavior
 
-Offline: provider adapters, repository matching, ambiguity, failure semantics, MCP framing and package format must pass automated tests.
+- A match based solely on a display name is an unverified candidate.
+- Account name supplied by the caller is not proof that the catalog was read under that account.
+- A missing provider returns unavailable/partial coverage, **not zero verified environments**.
+- Complete + live + unique + verified repository association is required before returning a resolved descriptor.
+- Imported snapshots, onboarding task hints, stale caches and non-authoritative Codex Tasks lists cannot become live evidence.
+- 401/403, pagination loops, schema mismatches and unavailable transports block resolution, never cause privilege escalation.
 
-Live acceptance **pending**: discover a zero-task Legacy environment through an authorized native client; obtain a complete Current catalog with user/workspace scopes and drafts correctly reported; verify actual immutable IDs; confirm persistence and resolution without creating a task or writing externally.
+## Retirement boundary
+
+When Legacy becomes obsolete:
+1. Delete legacy-discovery skill and runtime/legacy module.
+2. Remove Legacy-only tool registrations from the MCP server and Legacy CLI option.
+3. Remove tests/test_legacy.py and Legacy release documentation.
+4. Keep runtime/current, tests/test_current.py and common model/service unchanged.
+
+Current live transport will be implemented independently as soon as an officially authorized method is available.
+
+## Validation
+
+Offline provider behavior, tool dispatch, framing, account identity, repository matching and release structure are tested without live Cloud writes. CI runs Python 3.9, 3.12 and 3.13, including **independent Legacy and Current test suites**.

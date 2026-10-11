@@ -24,15 +24,6 @@ def normalize_repository(value: Optional[str]) -> Optional[str]:
     return f"{parts[0].lower()}/{parts[1].lower()}"
 
 
-def require_cloud_type(cloud_type: str, allow_all: bool = True) -> str:
-    allowed = {"legacy", "current"}
-    if allow_all:
-        allowed.add("all")
-    if cloud_type not in allowed:
-        raise ValueError("cloud_type must be legacy, current or all")
-    return cloud_type
-
-
 @dataclass(frozen=True)
 class EnvironmentDescriptor:
     cloud_type: str
@@ -50,7 +41,8 @@ class EnvironmentDescriptor:
     repository_match: str = "not_evaluated"
 
     def __post_init__(self) -> None:
-        require_cloud_type(self.cloud_type, allow_all=False)
+        if not isinstance(self.cloud_type, str) or not self.cloud_type.strip():
+            raise ValueError("cloud_type must be a nonempty string")
         if not self.environment_id.strip():
             raise ValueError("environment_id is required")
         if self.evidence not in {"live", "imported", "indirect", "cache"}:

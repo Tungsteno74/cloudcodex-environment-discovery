@@ -1,116 +1,134 @@
-"""Minimal read-only MCP stdio transport for discovery tools.
+"""Independent Legacy/Current read-only MCP stdio server.
 
-Run from the plugin's local runtime. No credentials, network calls or stdout
-logging. This process is not automatically available to ChatGPT web/mobile.
+The MCP tool name determines the provider; there is no implicit mixed list.
+Each provider is imported lazily so Legacy can be retired without modifying
+Current's implementation. This process never extracts credentials.
 """
 from __future__ import annotations
 
 import json
 import sys
-from typing import Any, Dict, IO, Mapping, Optional
-
-from discovery.api import build_default_facade
+from typing import Any, Callable, Dict, IO, Mapping, Optional, Tuple
 
 MAX_FRAME_BYTES = 1024 * 1024
 SERVER_NAME = "cloudcodex-environment-discovery"
-VERSION = "0.1.1"
+VERSION = "0.2.0"
+
+# Every externally callable method targets exactly one Cloud generation.
+# No generic "all" or cross-provider catalog operation is exposed.
+TOOLS: Dict[str, Tuple[str, str]] = {
+    "list_legacy_environments": ("legacy", "list_environments"),
+    "find_legacy_environments": ("legacy", "find_environments"),
+    "get_legacy_environment": ("legacy", "get_environment"),
+    "resolve_legacy_environment": ("legacy", "resolve_environment"),
+    "list_current_environments": ("current", "list_environments"),
+    "find_current_environments": ("current", "find_environments"),
+    "get_current_environment": ("current", "get_environment"),
+    "resolve_current_environment": ("current", "resolve_environment"),
+}
+
+
+def make_default_service(cloud_type: str) -> Any:
+    """Load only the selected provider implementation."""
+    if cloud_type == "legacy":
+        from legacy.api import build_legacy_service
+        return build_legacy_service()
+    if cloud_type == "current":
+        from current.api import build_current_service
+        return build_current_service()
+    raise ValueError("unsupported cloud type")
 
 
 def read_frame(input_stream: IO[bytes]) -> Optional[Dict[str, Any]]:
-    """Read one newline-delimited MCP JSON-RPC message."""
+    """Read one newline-delimited JSON-RPC object; bounded for safety."""
     raw = input_stream.readline(MAX_FRAME_BYTES + 2)
     if not raw:
         return None
     if len(raw) > MAX_FRAME_BYTES + 1 or not raw.endswith(b"\n"):
-        raise ValueError("invalid or oversized MCP newline-delimited message")
-    body = json.loads(raw.decode("utf-8"))
-    if not isinstance(body, dict):
-        raise ValueError("MCP request must be an object")
-    return body
+        raise ValueError("invalid or oversized MCP message")
+    message = json.loads(raw.decode("utf-8"))
+    if not isinstance(message, dict):
+        raise ValueError("MCP message must be a JSON object")
+    return message
 
 
 def write_frame(output_stream: IO[bytes], payload: Mapping[str, Any]) -> None:
-    encoded = json.dumps(
-        payload, ensure_ascii=False, separators=(",", ":")
+    raw = json.dumps(
+        payload, separators=(",", ":"), ensure_ascii=False
     ).encode("utf-8")
-    if len(encoded) > MAX_FRAME_BYTES:
+    if len(raw) > MAX_FRAME_BYTES:
         raise ValueError("MCP response exceeds maximum size")
-    output_stream.write(encoded + b"\n")
+    output_stream.write(raw + b"\n")
     output_stream.flush()
 
 
 def tool_specs() -> list:
-    return [
-        {
-            "name": "list_environments",
-            "description": "Read-only inventory with provider availability and catalog completeness.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "account": {"type": "string"},
-                    "cloud_type": {"type": "string", "enum": ["all", "legacy", "current"]},
-                    "include_drafts": {"type": "boolean"},
+    """Advertise exactly eight domain-specific tools."""
+    operations = {
+        "list": (
+            "List existing {domain} Cloud environments with completeness and provenance.",
+            {},
+            [],
+        ),
+        "find": (
+            "Find existing {domain} Cloud environments by explicit repository identity.",
+            {"repository": {"type": "string"}},
+            ["repository"],
+        ),
+        "get": (
+            "Read an existing {domain} Cloud environment by immutable ID.",
+            {"environment_id": {"type": "string"}},
+            ["environment_id"],
+        ),
+        "resolve": (
+            "Resolve only one live, verified {domain} Cloud environment.",
+            {"repository": {"type": "string"}, "name": {"type": "string"}},
+            [],
+        ),
+    }
+    names = {
+        "list": "list_{domain}_environments",
+        "find": "find_{domain}_environments",
+        "get": "get_{domain}_environment",
+        "resolve": "resolve_{domain}_environment",
+    }
+    specs = []
+    for domain in ("legacy", "current"):
+        for operation in ("list", "find", "get", "resolve"):
+            description, properties, required = operations[operation]
+            schema_properties = dict(properties)
+            schema_properties["account"] = {"type": "string"}
+            if operation != "get":
+                schema_properties["include_drafts"] = {"type": "boolean"}
+            specs.append({
+                "name": names[operation].format(domain=domain),
+                "description": description.format(domain=domain),
+                "inputSchema": {
+                    "type": "object",
+                    "properties": schema_properties,
+                    "required": required,
+                    "additionalProperties": False,
                 },
-            },
-        },
-        {
-            "name": "find_environments",
-            "description": "Find all environments for a verified GitHub repository association.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "repository": {"type": "string"},
-                    "account": {"type": "string"},
-                    "cloud_type": {"type": "string", "enum": ["all", "legacy", "current"]},
-                    "include_drafts": {"type": "boolean"},
-                },
-                "required": ["repository"],
-            },
-        },
-        {
-            "name": "get_environment",
-            "description": "Get an environment by exact type and immutable ID, without creating tasks.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "cloud_type": {"type": "string", "enum": ["legacy", "current"]},
-                    "environment_id": {"type": "string"},
-                    "account": {"type": "string"},
-                },
-                "required": ["cloud_type", "environment_id"],
-            },
-        },
-        {
-            "name": "resolve_environment",
-            "description": "Select only a unique live, verified environment from a complete catalog.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "repository": {"type": "string"},
-                    "name": {"type": "string"},
-                    "account": {"type": "string"},
-                    "cloud_type": {"type": "string", "enum": ["all", "legacy", "current"]},
-                    "include_drafts": {"type": "boolean"},
-                },
-            },
-        },
-    ]
+            })
+    assert {spec["name"] for spec in specs} == set(TOOLS)
+    return specs
 
 
 def handle_request(
     message: Mapping[str, Any],
-    facade: Any,
+    service_factory: Optional[Callable[[str], Any]] = None,
 ) -> Optional[Dict[str, Any]]:
+    """Handle one JSON-RPC request with a lazily loaded target service."""
     method = message.get("method")
-    if not isinstance(method, str):
-        return None
-    if "id" not in message:  # JSON-RPC notification
-        return None
+    if not isinstance(method, str) or "id" not in message:
+        return None  # Notification, not a command requiring response.
     request_id = message["id"]
     try:
         if method == "initialize":
             params = message.get("params") or {}
-            version = params.get("protocolVersion", "2024-11-05")
+            if not isinstance(params, dict):
+                raise ValueError("invalid initialize arguments")
+            version = params.get("protocolVersion") or "2024-11-05"
             result: Dict[str, Any] = {
                 "protocolVersion": version,
                 "capabilities": {"tools": {"listChanged": False}},
@@ -122,21 +140,33 @@ def handle_request(
             result = {"tools": tool_specs()}
         elif method == "tools/call":
             params = message.get("params") or {}
+            if not isinstance(params, dict):
+                raise ValueError("invalid tool call arguments")
             tool_name = params.get("name")
             arguments = params.get("arguments") or {}
             if not isinstance(arguments, dict):
                 raise ValueError("tool arguments must be an object")
-            funcs = {
-                "list_environments": facade.list_environments,
-                "find_environments": facade.find_environments,
-                "get_environment": facade.get_environment,
-                "resolve_environment": facade.resolve_environment,
-            }
-            if tool_name not in funcs:
+            if tool_name not in TOOLS:
                 raise KeyError("unknown discovery tool")
-            data = funcs[tool_name](**arguments)
+            if "cloud_type" in arguments:
+                raise ValueError("cloud_type is fixed by the selected tool")
+            allowed = next(
+                spec["inputSchema"]["properties"]
+                for spec in tool_specs() if spec["name"] == tool_name
+            )
+            if any(key not in allowed for key in arguments):
+                raise ValueError("unexpected discovery tool argument")
+            domain, method_name = TOOLS[tool_name]
+            factory = service_factory or make_default_service
+            service = factory(domain)
+            if service.cloud_type != domain:
+                raise ValueError("provider identity mismatch")
+            data = getattr(service, method_name)(**arguments)
             result = {
-                "content": [{"type": "text", "text": json.dumps(data, ensure_ascii=False)}],
+                "content": [{
+                    "type": "text",
+                    "text": json.dumps(data, ensure_ascii=False),
+                }],
                 "structuredContent": data,
                 "isError": False,
             }
@@ -146,32 +176,30 @@ def handle_request(
                 "error": {"code": -32601, "message": "Method not found"},
             }
         return {"jsonrpc": "2.0", "id": request_id, "result": result}
-    except (ValueError, TypeError, KeyError) as error:
-        # Do not report raw HTTP error bodies or secret-bearing call values.
+    except (ValueError, TypeError, KeyError):
+        # No request args, paths or raw HTTP error bodies in exceptions.
         return {
             "jsonrpc": "2.0", "id": request_id,
-            "error": {"code": -32602, "message": str(error)},
+            "error": {"code": -32602, "message": "Invalid discovery request"},
         }
     except Exception:
         return {
             "jsonrpc": "2.0", "id": request_id,
-            "error": {"code": -32603, "message": "Internal read-only provider error"},
+            "error": {"code": -32603, "message": "Read-only provider error"},
         }
 
 
 def serve(input_stream: IO[bytes], output_stream: IO[bytes]) -> None:
-    facade = build_default_facade()
     while True:
         try:
             message = read_frame(input_stream)
         except (ValueError, UnicodeError, json.JSONDecodeError):
-            # Invalid frames have no reliable request ID. Stop safely.
-            return
+            return  # Invalid framing has no safe request ID.
         if message is None:
             return
-        reply = handle_request(message, facade)
-        if reply is not None:
-            write_frame(output_stream, reply)
+        response = handle_request(message)
+        if response is not None:
+            write_frame(output_stream, response)
 
 
 if __name__ == "__main__":

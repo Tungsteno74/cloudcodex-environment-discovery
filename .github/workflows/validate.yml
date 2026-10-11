@@ -29,7 +29,11 @@ jobs:
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Validate source package and tests
+      - name: Validate Legacy provider independently
+        run: python -X utf8 -m unittest discover -s tests -p test_legacy.py
+      - name: Validate Current provider independently
+        run: python -X utf8 -m unittest discover -s tests -p test_current.py
+      - name: Validate common contracts and MCP interface
         run: python -X utf8 tools/validate.py
       - name: Build reproducible plugin archive
         run: python -X utf8 tools/build_release.py
