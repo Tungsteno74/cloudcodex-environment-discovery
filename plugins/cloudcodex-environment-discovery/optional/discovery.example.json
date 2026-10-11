@@ -13,5 +13,8 @@
       ],
       "stages": []
     }
+  },
+  "github": {
+    "enabled": false
   }
 }

@@ -66,3 +66,7 @@ The backend catalogs in these tests are simulated host fixtures. This is a genui
 - MCP lifecycle: https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle
 - MCP stdio transport: https://modelcontextprotocol.io/specification/2025-11-25/basic/transports
 - MCP tools: https://modelcontextprotocol.io/specification/2025-11-25/server/tools
+
+## v0.3.1 compatibility
+
+The SDK pin, stdio profile and eight tool names are unchanged. Optional GitHub repository evidence and onboarding hints use the same configured services as CLI. Tools do not accept the GitHub executable, integrity hash, export path or consent flags; these remain operator startup settings. A new real SDK integration test confirms that an onboarding task with no Configuration ID stays non-resolvable.

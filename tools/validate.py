@@ -10,7 +10,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / 'plugins/cloudcodex-environment-discovery'
-CORE_SUITES = ('common', 'legacy', 'current', 'adapters', 'interface')
+CORE_SUITES = ('common', 'legacy', 'current', 'adapters', 'sources', 'interface')
 
 
 def validate_structure():
@@ -40,7 +40,8 @@ def validate_structure():
                 'runtime/common/configuration.py', 'runtime/common/adapters.py',
                 'runtime/common/escalation.py', 'runtime/common/catalog.py',
                 'runtime/common/models.py', 'runtime/common/service.py',
-                'runtime/current/provider.py', 'runtime/legacy/provider.py', '.app.json')
+                'runtime/current/provider.py', 'runtime/legacy/provider.py',
+                'runtime/current/onboarding.py', 'runtime/common/github.py', '.app.json')
     for relative in required:
         if not (PLUGIN / relative).is_file():
             raise ValueError('Required resource missing: ' + relative)

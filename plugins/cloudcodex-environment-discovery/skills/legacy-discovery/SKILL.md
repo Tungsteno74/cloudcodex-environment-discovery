@@ -42,3 +42,9 @@ Return the exact ID, explicit repository association, account/scope, source, obs
 If the optional SDK server is already enabled, equivalent tools are `list_legacy_environments`, `find_legacy_environments`, `get_legacy_environment`, `resolve_legacy_environment`. Do not enable MCP merely to execute this skill.
 
 This skill never invokes Current or performs provisioning. Root may invoke the independent Current skill separately when both generations are explicitly requested.
+
+## Optional GitHub identity verification (v0.3.1)
+
+When already enabled in startup configuration, the native GitHub adapter verifies repository identity through the existing gh account. It uses only fixed GET operations and does not read credentials. Configuration uses github.enabled, an absolute gh executable path and SHA-256 pin, and an optional expected GitHub account (not the ChatGPT account). The default is disabled. Root can alternatively use its existing authorized GitHub connector.
+
+find/resolve prefer the verified numeric repository ID, then canonical owner/repo; a matching name cannot override an ID conflict. GitHub success is repository evidence only and must not be described as an existing Cloud environment. A configured GitHub verification failure stops the dependent lookup rather than broadening access.

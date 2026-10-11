@@ -52,6 +52,7 @@ class EscalatingProvider:
 
     def _run(self, operation, account, include_drafts, repository):
         attempts = []
+        hints = []
         best: Optional[ProviderResult] = None
         verified_account = account
         last = ProviderResult(provider=self.name, reason="no_authorized_source_configured")
@@ -62,7 +63,7 @@ class EscalatingProvider:
                                  "reason": "stage_not_pre_authorized", "elapsed_ms": 0})
                 if self.mode == "CONFIRM":
                     return ProviderResult(provider=self.name, status="approval_required",
-                                          attempts=attempts, reason="stage_not_pre_authorized")
+                                          attempts=attempts, hints=list(hints), reason="stage_not_pre_authorized")
                 continue
             started = monotonic()
             try:
@@ -92,6 +93,9 @@ class EscalatingProvider:
                 result = ProviderResult(provider=self.name, status="unavailable",
                                         reason="source_read_failed")
             operation.check()
+            for hint in result.hints:
+                if hint not in hints and len(hints) < 100:
+                    hints.append(hint)
             if verified_account is not None and result.evidence == "live" and not result.account_verified:
                 result = ProviderResult(provider=self.name, status="forbidden",
                                         reason="account_unverified_during_escalation")
@@ -101,10 +105,11 @@ class EscalatingProvider:
                                             reason="account_changed_during_escalation")
                 else:
                     verified_account = result.account
+            result.hints = list(hints)
             attempts.append({"stage": stage.name, "status": result.status,
                              "reason": result.reason,
                              "catalog_complete": result.catalog_complete,
-                             "count": len(result.environments),
+                             "count": len(result.environments), "hint_count": len(result.hints),
                              "elapsed_ms": round((monotonic() - started) * 1000, 1)})
             result.source = result.source or stage.name
             result.attempts = list(attempts)
@@ -126,7 +131,8 @@ class EscalatingProvider:
                 result.catalog_complete = False
                 result.reason = "unrecognized_source_status"
                 return result
-        final = replace(best if best is not None else last, attempts=list(attempts), catalog_complete=False)
+        final = replace(best if best is not None else last, attempts=list(attempts),
+                        hints=list(hints), catalog_complete=False)
         if final.status in {"ok", "empty"}:
             final.status = "partial"
         if not attempts:

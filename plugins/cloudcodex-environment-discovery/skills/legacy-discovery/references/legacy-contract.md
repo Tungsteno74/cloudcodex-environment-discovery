@@ -33,3 +33,9 @@ Complete live success—including an empty catalog—stops. Missing/partial sour
 Each result includes status, catalog_complete, source/evidence, observed_at and ordered attempts with timings/reasons. Snapshots remain imported candidates. Resolve requires one fresh, live verified identity and complete relevant coverage. Version/draft ambiguity is preserved; cached IDs are not current truth.
 
 Optional MCP equivalents: list_legacy_environments, find_legacy_environments, get_legacy_environment, resolve_legacy_environment. MCP is not an authentication mechanism or a prerequisite. No Current lookup, task creation, provisioning, browser control or GitHub writes are part of this skill.
+
+## Optional GitHub identity verification (v0.3.1)
+
+When already enabled in startup configuration, the native GitHub adapter verifies repository identity through the existing gh account. It uses only fixed GET operations and does not read credentials. Configuration uses github.enabled, an absolute gh executable path and SHA-256 pin, and an optional expected GitHub account (not the ChatGPT account). The default is disabled. Root can alternatively use its existing authorized GitHub connector.
+
+find/resolve prefer the verified numeric repository ID, then canonical owner/repo; a matching name cannot override an ID conflict. GitHub success is repository evidence only and must not be described as an existing Cloud environment. A configured GitHub verification failure stops the dependent lookup rather than broadening access.

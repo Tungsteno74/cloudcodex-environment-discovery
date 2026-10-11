@@ -13,6 +13,7 @@ from typing import Any, Dict, Mapping, Optional
 
 from .adapters import CommandCatalogProvider, CommandClient, CommandReadTransport, CommandSpec
 from .escalation import EscalatingProvider, Stage
+from .github import GitHubSettings, NativeGitHubRepositoryResolver
 from .service import EnvironmentDiscoveryService
 from .snapshot import SnapshotEnvironmentProvider
 
@@ -44,7 +45,7 @@ def load_configuration(path: Optional[Path] = None) -> dict:
 
 
 def validate_configuration(content: Mapping[str, Any]) -> dict:
-    if not isinstance(content, dict) or set(content) - {"schema_version", "mode", "timeout", "domains"}:
+    if not isinstance(content, dict) or set(content) - {"schema_version", "mode", "timeout", "domains", "github"}:
         raise ValueError("Unknown discovery configuration fields")
     if type(content.get("schema_version")) is not int or content["schema_version"] != 1:
         raise ValueError("Unsupported discovery configuration version")
@@ -53,6 +54,13 @@ def validate_configuration(content: Mapping[str, Any]) -> dict:
     timeout = content.get("timeout", 30)
     if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not 0.1 <= timeout <= 180:
         raise ValueError("Invalid discovery operation timeout")
+    github = content.get("github", {"enabled": False})
+    if not isinstance(github, dict) or type(github.get("enabled")) is not bool:
+        raise ValueError("GitHub requires explicit enabled true/false")
+    if github["enabled"]:
+        GitHubSettings.from_mapping(github)
+    elif set(github) != {"enabled"}:
+        raise ValueError("Disabled GitHub settings must contain only enabled")
     domains = content.get("domains", {})
     if not isinstance(domains, dict) or set(domains) - {"legacy", "current"}:
         raise ValueError("Unknown cloud generation")
@@ -85,7 +93,7 @@ def validate_configuration(content: Mapping[str, Any]) -> dict:
             previous = ORDER[kind]
             if type(stage.get("approved", False)) is not bool:
                 raise ValueError("Stage approval must be explicit boolean")
-            if kind == "snapshot":
+            if kind == "snapshot" or kind == "onboarding" and "path" in stage:
                 if "command" in stage or not isinstance(stage.get("path"), str) or not Path(stage["path"]).is_absolute():
                     raise ValueError("Snapshot path must be explicit and absolute")
             else:
@@ -114,6 +122,9 @@ class DiscoveryRuntime:
         self.configuration = validate_configuration(configuration) if configuration is not None else load_configuration()
         self.timeout = float(self.configuration.get("timeout", 30))
         self._services: Dict[str, EnvironmentDiscoveryService] = {}
+        github = self.configuration.get("github", {"enabled": False})
+        self._repository_resolver = (NativeGitHubRepositoryResolver(GitHubSettings.from_mapping(github))
+                                     if github["enabled"] else None)
 
     def service(self, domain: str) -> EnvironmentDiscoveryService:
         if domain not in {"legacy", "current"}:
@@ -126,6 +137,9 @@ class DiscoveryRuntime:
             kind = spec["kind"]
             if kind == "snapshot":
                 provider = DeferredSnapshot(domain, Path(spec["path"]))
+            elif kind == "onboarding" and "path" in spec:
+                from current.onboarding import OnboardingEvidenceFile
+                provider = OnboardingEvidenceFile(Path(spec["path"]))
             else:
                 client = CommandClient(CommandSpec.from_mapping(spec["command"]))
                 if kind == "http":
@@ -148,6 +162,7 @@ class DiscoveryRuntime:
             stages.append(Stage(kind, provider, spec.get("approved", False)))
         service = EnvironmentDiscoveryService(
             domain, EscalatingProvider(domain, stages, self.configuration.get("mode", "AUTO")),
+            repository_resolver=self._repository_resolver,
         )
         self._services[domain] = service
         return service
@@ -157,6 +172,7 @@ class DiscoveryRuntime:
         self.service(domain)
         stages = self.configuration.get("domains", {}).get(domain, {}).get("stages", [])
         return {"cloud_type": domain, "configured": bool(stages), "live_tested": False,
+                "github_enabled": self._repository_resolver is not None,
                 "mode": self.configuration.get("mode", "AUTO"), "timeout": self.timeout,
                 "stages": [{"kind": s["kind"], "approved": s.get("approved", False)} for s in stages],
                 "warning": "Configured host adapters do not establish provider authorization or live coverage"}

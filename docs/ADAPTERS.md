@@ -90,3 +90,9 @@ Live acceptance still requires a permitted native/official catalog host for the 
 ## Research basis
 
 Original note: `Codex_Cloud_Environment_Discovery_Nota_Architetturale_plugin.md`, 10 October 2026. Official client source inspected at OpenAI Codex commit `4aa94dce270de668eff6e2fa8585c82385e84455`, especially `codex-rs/cloud-tasks/src/env_detect.rs`, `util.rs` and `ui.rs`. Historical GET 200 evidence does not establish current operational access from this plugin.
+
+## v0.3.1 concrete optional sources
+
+The optional github startup section enables a reviewed, pinned native gh repository reader; it is not a Cloud catalog host. The same find/resolve functions carry repository_evidence separately from provider completeness. An enabled helper uses its own observed GitHub identity, never an inferred mapping from the ChatGPT account.
+
+Current onboarding can also use an approved path containing an explicit Codex Tasks connector export. This route does not require a custom host implementation, but evidence remains indirect; tasks without Configuration IDs are returned under provider.hints and are not environment records. Complete/denied-stage decisions are unchanged. See CONTINUATION_0.3.1.md for the schema and tested live observations.

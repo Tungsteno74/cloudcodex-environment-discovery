@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.1 — Concrete GitHub verification and onboarding hints
+
+- Added startup-opt-in native GitHub CLI repository verification with account continuity, fixed read-only routes and executable pinning.
+- Wired verified repository IDs into find/resolve without converting GitHub access into Cloud existence.
+- Added explicit Codex Tasks connector evidence import for Current onboarding; task IDs without Configuration IDs remain separate hints.
+- Preserved hints across later missing consent/authorization failure, without permitting fallback around a denial.
+- Verified the real repository lookup and current connector observations; complete live Cloud catalog access remains unresolved.
+
 ## 0.3.0 — Configured adapters and official SDK MCP profile
 
 - Added executable operator-approved command adapters and startup-only configuration shared by CLI and MCP.

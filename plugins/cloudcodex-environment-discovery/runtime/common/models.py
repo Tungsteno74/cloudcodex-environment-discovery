@@ -84,6 +84,7 @@ class ProviderResult:
     account_verified: bool = False
     reason: Optional[str] = None
     source: Optional[str] = None
+    hints: List[Dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         output = asdict(self)

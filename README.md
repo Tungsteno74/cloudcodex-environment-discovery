@@ -9,7 +9,7 @@ Read-only discovery of existing Codex Cloud environments **before any Cloud task
 
 The Root chooses a generation directly. There is no mandatory Root dispatcher, implicit mixed catalog, or required MCP server.
 
-## v0.3.0 preview — implemented and not yet verified live
+## v0.3.1 preview — catalog access still requires a permitted host
 
 | Component | This release |
 |---|---|
@@ -18,7 +18,8 @@ The Root chooses a generation directly. There is no mandatory Root dispatcher, i
 | Legacy HTTP catalog / by-repository adapter | Implemented over an approved GET host; no label-to-repository guessing |
 | Current catalog adapter | Implemented scoped pagination, drafts, versions and account continuity |
 | Primary native/official source | Host-command contract implemented; **a working authenticated host is not bundled** |
-| Current onboarding hints | Separate indirect-evidence host stage; never enough for automatic resolution |
+| Current onboarding hints | Approved host or explicit Codex Tasks export; missing Configuration IDs remain hints |
+| Optional GitHub identity adapter | Concrete native gh GET reader; repository lookup verified live, not Cloud authorization |
 | Snapshot fallback | Explicit imported evidence, never a live catalog |
 | Optional MCP | Official MCP Python SDK, eight read-only tools; real stdio client/server tests |
 | Native-session automation | **Not shipped**: its attempted implementation was blocked by tool safety controls |
@@ -40,6 +41,10 @@ python plugins/cloudcodex-environment-discovery/runtime/cli.py current resolve -
 `doctor` reports configuration only: it does not start hosts or claim live access. Without configured sources, reads return `unavailable` and `catalog_complete=false`, never a verified empty catalog.
 
 Configuration is selected at process startup by `--config` or `CLOUDCODEX_DISCOVERY_CONFIG`. It cannot be supplied through an MCP tool call. Use the empty, safe `optional/discovery.example.json` as a starting point and read [ADAPTERS.md](docs/ADAPTERS.md) before enabling a host.
+
+## New in v0.3.1
+
+The optional GitHub adapter verifies a requested repository ID and canonical owner/repo through the installed `gh` CLI, using its existing authorized account. It is startup opt-in and cannot prove Cloud environment existence. Current onboarding can consume explicit `Codex Tasks.list_tasks/read_task` exports through an approved path stage: task IDs/titles remain `provider.hints` unless a separate configuration ID is explicitly present. Prose, alleged publication status and display-name similarity are not parsed as authority. See [continuation notes](docs/CONTINUATION_0.3.1.md).
 
 ## Escalation
 

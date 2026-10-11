@@ -28,3 +28,7 @@ Work is kept on a dedicated implementation branch and reviewed separately from t
 Run `python -X utf8 tools/validate.py` for the dependency-free core and `python -X utf8 tools/validate.py --with-mcp` for the actual optional SDK profile. A missing SDK or skipped SDK tests cannot be reported as a complete MCP verification. Consult the validation report and CI for exact counts and revisions.
 
 See ADAPTERS.md, MCP_OPTIONAL.md and PROJECT_MEMORY.md for resumable contracts and blockers.
+
+## v0.3.1 continuation
+
+Added a concrete optional native GitHub repository adapter and Current onboarding evidence reader. The live GitHub lookup succeeded; the connected Codex Tasks read yielded two relevant onboarding hints but no structured Configuration ID. Neither result constitutes a complete Cloud catalog. Core: 170 tests passed on Python 3.9; core plus optional SDK: 183 tests passed on Python 3.12, with zero skips. See CONTINUATION_0.3.1.md for scope and reproducibility.

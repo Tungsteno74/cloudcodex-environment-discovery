@@ -43,3 +43,13 @@ This proves a tool-policy block on that attempt, **not** that the user's credent
 ## Resume procedure
 
 Read AGENTS.md and the actual Git status first. Reuse the current repository and pending PRs; do not create duplicate projects or Cloud resources. Check the last validation report and SDK profile before broad testing. Investigate an independently supported, authorized catalog interface rather than routing around the recorded refusal. Once connected, test list/find/get/resolve read-only with real account/repository/scope evidence, then update this memory with observed results and provenance.
+
+## Observed in v0.3.1 continuation
+
+- Reconciled the same local repository, implementation branch, source draft PR #1 and immutable v0.3.0 release. No duplicate project, new Cloud task or environment was created.
+- Generated the official schema from installed Codex CLI 0.162.0: 447 schema files; environment/add, environment/info and environment/status do not supply a hosted catalog listing. No invented RPC calls or native-session retry followed.
+- Retested Codex Tasks.list_tasks and read_task through the actual connected tool. Two relevant onboarding records were visible, but no explicit configuration ID was returned. Their prose was not converted into catalog truth.
+- Added the optional native gh-based repository resolver originally envisaged by the note. A real lookup verified the sample repository and its numeric ID in 1.329 seconds; Cloud resolution correctly remained not_verifiable. The GitHub account is distinct from the ChatGPT account; default configuration does not enable the helper.
+- Added a separate provider.hints channel for explicit onboarding connector exports. The live metadata test returned two hints and zero environments; its temporary export was deleted. The Python parser does not itself establish a connector connection.
+- Added regression coverage for ID conflicts, changed accounts, hint retention, denied-stage stops and SDK transport of non-resolvable hints. Local core profile: 170 passed; core+SDK: 183 passed, zero skipped.
+- Still unresolved: permitted complete Legacy/Current catalog hosts and actual installation into ChatGPT Chat. This continuation does not supersede the prior native-session refusal or promote fixture success to live acceptance.

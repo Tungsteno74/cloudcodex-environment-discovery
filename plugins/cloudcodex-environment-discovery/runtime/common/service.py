@@ -6,16 +6,19 @@ from typing import Any, Dict, Optional
 
 from .catalog import merge_records
 from .matching import repository_match
+from .github import RepositoryResolver, match_verified_repository
 from .models import EnvironmentDescriptor, ProviderResult, normalize_repository, now_utc
 from .operation import OperationCancelled, OperationTimedOut, checkpoint
 from .protocols import EnvironmentProvider
 
 
 class EnvironmentDiscoveryService:
-    def __init__(self, cloud_type: str, provider: EnvironmentProvider):
+    def __init__(self, cloud_type: str, provider: EnvironmentProvider,
+                 repository_resolver: Optional[RepositoryResolver] = None):
         if not isinstance(cloud_type, str) or not cloud_type.strip() or provider.name != cloud_type:
             raise ValueError("Provider and cloud generation must match")
         self.cloud_type, self._provider = cloud_type, provider
+        self._repository_resolver = repository_resolver
 
     def list_environments(self, account: Optional[str] = None,
                           include_drafts: bool = False) -> Dict[str, Any]:
@@ -86,11 +89,27 @@ class EnvironmentDiscoveryService:
         if (not isinstance(repository, str) or not repository.strip()
                 or not repository.strip().isdecimal() and normalize_repository(repository) is None):
             raise ValueError("Repository must be a numeric ID or owner/repo")
-        result = self._catalog(account, include_drafts, repository=repository)
+        repository_evidence = None
+        query = repository
+        if self._repository_resolver is not None:
+            repository_evidence = self._repository_resolver.resolve(repository)
+            if repository_evidence.get("status") != "verified":
+                return {"cloud_type": self.cloud_type, "repository": repository, "count": 0,
+                        "status": "not_verifiable", "catalog_complete": False,
+                        "environments": [], "observed_at": now_utc(),
+                        "repository_evidence": repository_evidence,
+                        "provider": {"provider": self.cloud_type, "status": "not_attempted",
+                                     "catalog_complete": False, "attempts": []},
+                        "warnings": ["Configured GitHub identity verification failed; Cloud reads were not attempted"]}
+            query = repository_evidence["repository"]
+        result = self._catalog(account, include_drafts, repository=query)
+        if repository_evidence is not None:
+            result["repository_evidence"] = repository_evidence
         matches = []
         for item in result["environments"]:
             descriptor = EnvironmentDescriptor(**item)
-            match = repository_match(descriptor, repository)
+            match = (match_verified_repository(descriptor, repository_evidence)
+                     if repository_evidence is not None else repository_match(descriptor, repository))
             if match != "none":
                 matches.append(descriptor.with_match(match).to_dict())
         result.update(repository=repository, environments=matches, count=len(matches))
@@ -136,4 +155,5 @@ class EnvironmentDiscoveryService:
         return {"cloud_type": self.cloud_type, "status": status, "selected": selected,
                 "candidates": candidates, "catalog_complete": catalog["catalog_complete"],
                 "provider": catalog["provider"], "warnings": catalog["warnings"],
-                "observed_at": catalog["observed_at"]}
+                "observed_at": catalog["observed_at"],
+                "repository_evidence": catalog.get("repository_evidence")}

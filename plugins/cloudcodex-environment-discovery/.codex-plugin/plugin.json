@@ -15,7 +15,7 @@
   },
   "apps": "./.app.json",
   "name": "cloudcodex-environment-discovery",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Read-only provider-specific discovery of Codex Cloud Legacy and current environments, with two independent skills and no implicit mixed catalogs.",
   "author": {
     "name": "Tungsteno74"

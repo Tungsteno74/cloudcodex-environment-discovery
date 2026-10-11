@@ -174,5 +174,29 @@ class McpIntegrationTests(unittest.TestCase):
         self.interact(action, mode='delay')
 
 
+
+    def test_connector_hints_use_sdk_without_fabricating_cloud_ids(self):
+        from common.models import now_utc
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'task-evidence.json'
+            path.write_text(json.dumps({
+                'schema_version': 1, 'source': 'codex_tasks', 'observed_at': now_utc(),
+                'payload': {'tasks': [{'id': 'thread-id', 'title': 'Configure sample'}]}
+            }), encoding='utf-8')
+            config = {'schema_version': 1, 'domains': {'current': {'stages': [
+                {'kind': 'onboarding', 'approved': True, 'path': str(path)}]}}}
+            async def action(session, initialization):
+                listing = await session.call_tool('list_current_environments', {})
+                data = listing.structuredContent
+                self.assertFalse(data['catalog_complete'])
+                self.assertEqual(data['environments'], [])
+                self.assertEqual(data['provider']['hints'][0]['task_id'], 'thread-id')
+                self.assertIsNone(data['provider']['hints'][0]['configuration_id'])
+                resolved = await session.call_tool('resolve_current_environment', {})
+                self.assertTrue(resolved.isError)
+                self.assertIsNone(resolved.structuredContent['selected'])
+            self.interact(action, configuration=config)
+
+
 if __name__ == '__main__':
     unittest.main()
