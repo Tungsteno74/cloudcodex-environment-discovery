@@ -1,275 +1,178 @@
-"""Read-only MCP protocol, lazy provider selection and plugin structure."""
+"""Real stdio MCP integration using the official SDK client and server.
+
+Catalog responses come from an explicitly simulated host process, not OpenAI.
+Run with Python 3.10+ and optional/requirements-mcp.txt. Core tests remain separate.
+"""
 from __future__ import annotations
 
-import io
+from datetime import timedelta
+import importlib.util
 import json
-import subprocess
-import sys
-import unittest
+import os
 from pathlib import Path
+import sys
+import tempfile
+import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-PLUGIN = ROOT / "plugins/cloudcodex-environment-discovery"
-RUNTIME = PLUGIN / "runtime"
+RUNTIME = ROOT / 'plugins/cloudcodex-environment-discovery/runtime'
 sys.path.insert(0, str(RUNTIME))
+from test_adapters import specification
 
-import server  # noqa: E402
-
-
-def request(name, arguments=None):
-    return {
-        "jsonrpc": "2.0", "id": 3, "method": "tools/call",
-        "params": {"name": name, "arguments": arguments or {}},
-    }
+SDK_PRESENT = importlib.util.find_spec('mcp') is not None
 
 
-class FakeService:
-    def __init__(self, cloud_type):
-        self.cloud_type = cloud_type
-    def list_environments(self, account=None, include_drafts=False):
-        return {"cloud_type": self.cloud_type, "account": account,
-                "status": "unavailable", "catalog_complete": False}
-    def find_environments(self, repository, account=None, include_drafts=False):
-        return {"cloud_type": self.cloud_type, "repository": repository,
-                "status": "partial"}
-    def get_environment(self, environment_id, account=None):
-        return {"cloud_type": self.cloud_type, "environment_id": environment_id,
-                "status": "not_verifiable"}
-    def resolve_environment(self, repository=None, name=None,
-                            account=None, include_drafts=False):
-        return {"cloud_type": self.cloud_type, "status": "not_verifiable"}
+@unittest.skipUnless(SDK_PRESENT, 'Optional MCP SDK is not installed; core suite is independent')
+class McpIntegrationTests(unittest.TestCase):
+    def interact(self, action, mode='catalog_ok', configuration=None):
+        import anyio
+        from mcp import ClientSession, StdioServerParameters
+        from mcp.client.stdio import stdio_client
+
+        async def scenario():
+            with tempfile.TemporaryDirectory(prefix='discovery-sdk-test-') as folder:
+                path = Path(folder) / 'adapter-config.json'
+                config = configuration if configuration is not None else {
+                    'schema_version': 1, 'timeout': 4, 'domains': {
+                        domain: {'stages': [{'kind': 'primary', 'approved': True,
+                                             'command': specification(mode, timeout=3)}]}
+                        for domain in ('legacy', 'current')
+                    }
+                }
+                path.write_text(json.dumps(config), encoding='utf-8')
+                params = StdioServerParameters(command=sys.executable,
+                    args=[str(RUNTIME / 'server.py'), '--config', str(path)], cwd=str(ROOT))
+                with open(os.devnull, 'w') as error_log:
+                    async with stdio_client(params, errlog=error_log) as (read, write):
+                        async with ClientSession(read, write, read_timeout_seconds=timedelta(seconds=15)) as session:
+                            initialization = await session.initialize()
+                            return await action(session, initialization)
+        return anyio.run(scenario)
+
+    def test_sdk_initializes_negotiated_stdio_session(self):
+        async def action(session, initialization):
+            from mcp.shared.version import SUPPORTED_PROTOCOL_VERSIONS
+            self.assertIn(initialization.protocolVersion, SUPPORTED_PROTOCOL_VERSIONS)
+            self.assertEqual(initialization.serverInfo.name, 'cloudcodex-environment-discovery')
+            self.assertIsNotNone(initialization.capabilities.tools)
+            await session.send_ping()
+        self.interact(action)
+
+    def test_all_eight_tools_are_registered_readonly_and_structured(self):
+        async def action(session, initialization):
+            from server import TOOLS
+            listing = await session.list_tools()
+            self.assertEqual({t.name for t in listing.tools}, set(TOOLS))
+            for tool in listing.tools:
+                self.assertTrue(tool.annotations.readOnlyHint)
+                self.assertFalse(tool.annotations.destructiveHint)
+                self.assertIsNotNone(tool.outputSchema)
+                self.assertNotIn('cloud_type', tool.inputSchema['properties'])
+        self.interact(action)
+
+    def test_all_eight_calls_use_the_correct_simulated_domain(self):
+        async def action(session, initialization):
+            for domain in ('legacy', 'current'):
+                cases = [('list_' + domain + '_environments', {}),
+                         ('find_' + domain + '_environments', {'repository': 'fixtures/demo'}),
+                         ('get_' + domain + '_environment', {'environment_id': 'fixture-' + domain}),
+                         ('resolve_' + domain + '_environment', {'repository': 'fixtures/demo'})]
+                for name, args in cases:
+                    result = await session.call_tool(name, args)
+                    self.assertFalse(result.isError, result.content)
+                    self.assertEqual(result.structuredContent['cloud_type'], domain)
+                    self.assertTrue(result.structuredContent['catalog_complete'])
+        self.interact(action)
+
+    def test_bad_argument_types_are_rejected_without_echo(self):
+        async def action(session, initialization):
+            for args in ({'include_drafts': 'true'}, {'account': 17}, {'config': 'secret-value'},
+                         {'cloud_type': 'all'}, {'token': 'secret-value'}):
+                result = await session.call_tool('list_current_environments', args)
+                self.assertTrue(result.isError)
+                self.assertNotIn('secret-value', str(result.content))
+                self.assertFalse(result.structuredContent['catalog_complete'])
+        self.interact(action)
+
+    def test_unknown_and_write_tools_are_not_invocable(self):
+        async def action(session, initialization):
+            for name in ('create_environment', 'list_environments', 'resolve_environment'):
+                result = await session.call_tool(name, {})
+                self.assertTrue(result.isError)
+        self.interact(action)
+
+    def test_required_repository_id_and_names_are_validated(self):
+        async def action(session, initialization):
+            for name, args in [('find_current_environments', {}),
+                               ('get_legacy_environment', {}),
+                               ('get_current_environment', {'environment_id': ''}),
+                               ('resolve_current_environment', {'name': 42})]:
+                result = await session.call_tool(name, args)
+                self.assertTrue(result.isError)
+        self.interact(action)
+
+    def test_denied_catalog_is_error_not_successful_empty(self):
+        async def action(session, initialization):
+            result = await session.call_tool('list_current_environments', {})
+            self.assertTrue(result.isError)
+            self.assertEqual(result.structuredContent['status'], 'forbidden')
+            self.assertFalse(result.structuredContent['catalog_complete'])
+        self.interact(action, mode='deny')
+
+    def test_no_configuration_produces_explicit_unavailable(self):
+        async def action(session, initialization):
+            result = await session.call_tool('list_legacy_environments', {})
+            self.assertTrue(result.isError)
+            self.assertEqual(result.structuredContent['provider']['reason'], 'no_authorized_source_configured')
+        self.interact(action, configuration={'schema_version': 1, 'domains': {}})
+
+    def test_empty_authoritative_catalog_is_valid_read(self):
+        async def action(session, initialization):
+            result = await session.call_tool('list_legacy_environments', {})
+            self.assertFalse(result.isError)
+            self.assertEqual(result.structuredContent['status'], 'empty')
+            self.assertTrue(result.structuredContent['catalog_complete'])
+        self.interact(action, mode='empty')
+
+    def test_progress_reports_escalation_stages(self):
+        messages = []
+        async def action(session, initialization):
+            async def progress(value, total, message):
+                messages.append(message)
+            result = await session.call_tool('list_current_environments', {}, progress_callback=progress)
+            self.assertFalse(result.isError)
+            self.assertIn('primary', messages)
+        self.interact(action)
+
+    def test_deadline_reports_tool_error_and_session_remains_usable(self):
+        config = {'schema_version': 1, 'timeout': 0.3, 'domains': {
+            'current': {'stages': [{'kind': 'primary', 'approved': True, 'command': specification('delay', 2)}]}}}
+        async def action(session, initialization):
+            result = await session.call_tool('list_current_environments', {})
+            self.assertTrue(result.isError)
+            self.assertEqual(result.structuredContent['status'], 'timeout')
+            await session.send_ping()
+        self.interact(action, configuration=config)
+
+    def test_sdk_cancellation_is_not_fallback_or_server_shutdown(self):
+        import anyio
+        async def action(session, initialization):
+            started = anyio.Event()
+            async def progress(value, total, message):
+                started.set()
+            async def slow_call():
+                await session.call_tool('list_current_environments', {}, progress_callback=progress)
+            async with anyio.create_task_group() as group:
+                group.start_soon(slow_call)
+                with anyio.fail_after(5):
+                    await started.wait()
+                await anyio.sleep(0.1)
+                group.cancel_scope.cancel()
+            await session.send_ping()
+            listing = await session.list_tools()
+            self.assertEqual(len(listing.tools), 8)
+        self.interact(action, mode='delay')
 
 
-class McpTests(unittest.TestCase):
-    def test_initialize(self):
-        out = server.handle_request({
-            "jsonrpc": "2.0", "id": 1, "method": "initialize",
-            "params": {"protocolVersion": "2025-03-26"},
-        })
-        self.assertEqual(out["result"]["protocolVersion"], "2025-03-26")
-
-    def test_specs_are_exactly_eight_independent_tools(self):
-        names = {entry["name"] for entry in server.tool_specs()}
-        self.assertEqual(names, {
-            "list_legacy_environments", "find_legacy_environments",
-            "get_legacy_environment", "resolve_legacy_environment",
-            "list_current_environments", "find_current_environments",
-            "get_current_environment", "resolve_current_environment",
-        })
-
-    def test_no_generic_mixed_catalog_tool(self):
-        names = {item["name"] for item in server.tool_specs()}
-        self.assertNotIn("list_environments", names)
-        self.assertNotIn("resolve_environment", names)
-
-    def test_no_cloud_type_argument_exposed(self):
-        for item in server.tool_specs():
-            self.assertNotIn("cloud_type", item["inputSchema"]["properties"])
-            self.assertFalse(item["inputSchema"]["additionalProperties"])
-
-    def test_each_domain_is_dispatched_only_to_own_service(self):
-        called = []
-        def factory(domain):
-            called.append(domain)
-            return FakeService(domain)
-        one = server.handle_request(
-            request("list_current_environments"), factory
-        )
-        self.assertEqual(one["result"]["structuredContent"]["cloud_type"], "current")
-        self.assertEqual(called, ["current"])
-
-    def test_legacy_tool_dispatches_legacy_only(self):
-        called = []
-        def factory(domain):
-            called.append(domain)
-            return FakeService(domain)
-        out = server.handle_request(
-            request("find_legacy_environments", {"repository": "owner/repo"}),
-            factory
-        )
-        self.assertEqual(out["result"]["structuredContent"]["cloud_type"], "legacy")
-        self.assertEqual(called, ["legacy"])
-
-    def test_get_current_is_specific(self):
-        out = server.handle_request(
-            request("get_current_environment", {"environment_id": "cfg-1"}),
-            FakeService,
-        )
-        self.assertEqual(
-            out["result"]["structuredContent"]["environment_id"], "cfg-1"
-        )
-
-    def test_resolve_legacy_is_specific(self):
-        out = server.handle_request(
-            request("resolve_legacy_environment", {"name": "Legacy"}),
-            FakeService,
-        )
-        self.assertEqual(
-            out["result"]["structuredContent"]["cloud_type"], "legacy"
-        )
-
-    def test_default_runtime_current_fails_closed(self):
-        out = server.handle_request(request("list_current_environments"))
-        self.assertFalse(out["result"]["structuredContent"]["catalog_complete"])
-
-    def test_default_runtime_legacy_fails_closed(self):
-        out = server.handle_request(request("list_legacy_environments"))
-        self.assertFalse(out["result"]["structuredContent"]["catalog_complete"])
-
-    def test_explicit_mixed_arg_rejected(self):
-        out = server.handle_request(request(
-            "list_current_environments", {"cloud_type": "all"}
-        ), FakeService)
-        self.assertEqual(out["error"]["code"], -32602)
-
-    def test_unknown_arguments_rejected(self):
-        out = server.handle_request(request(
-            "list_legacy_environments", {"token": "dont-expose-this"}
-        ), FakeService)
-        self.assertEqual(out["error"]["code"], -32602)
-        self.assertNotIn("dont-expose-this", str(out))
-
-    def test_creating_environment_is_not_a_tool(self):
-        out = server.handle_request(request("create_environment"), FakeService)
-        self.assertEqual(out["error"]["code"], -32602)
-
-    def test_notification_has_no_response(self):
-        self.assertIsNone(server.handle_request({
-            "jsonrpc": "2.0", "method": "notifications/initialized"
-        }))
-
-    def test_unknown_method(self):
-        out = server.handle_request({
-            "jsonrpc": "2.0", "id": 1, "method": "environments/create"
-        })
-        self.assertEqual(out["error"]["code"], -32601)
-
-    def test_frame_roundtrip(self):
-        stream = io.BytesIO()
-        server.write_frame(stream, {"jsonrpc": "2.0", "id": 1})
-        stream.seek(0)
-        self.assertEqual(server.read_frame(stream)["id"], 1)
-
-    def test_stdio_is_json_lines_not_content_length(self):
-        stream = io.BytesIO()
-        server.write_frame(stream, {"jsonrpc": "2.0", "id": 1})
-        raw = stream.getvalue()
-        self.assertTrue(raw.startswith(b"{"))
-        self.assertTrue(raw.endswith(b"\n"))
-        self.assertNotIn(b"Content-Length", raw)
-
-    def test_multiple_messages_from_same_stream(self):
-        stream = io.BytesIO()
-        server.write_frame(stream, {
-            "jsonrpc": "2.0", "id": 1, "method": "initialize",
-            "params": {"protocolVersion": "2024-11-05"},
-        })
-        server.write_frame(stream, {
-            "jsonrpc": "2.0", "id": 2, "method": "tools/list",
-        })
-        stream.seek(0)
-        output = io.BytesIO()
-        server.serve(stream, output)
-        output.seek(0)
-        self.assertEqual(server.read_frame(output)["id"], 1)
-        self.assertEqual(server.read_frame(output)["id"], 2)
-
-    def test_oversize_frame_is_rejected(self):
-        with self.assertRaises(ValueError):
-            server.read_frame(io.BytesIO(b"x" * (server.MAX_FRAME_BYTES + 2)))
-
-    def test_invalid_json_rejected(self):
-        with self.assertRaises(json.JSONDecodeError):
-            server.read_frame(io.BytesIO(b"nope\n"))
-
-    def test_selected_provider_is_loaded_lazily(self):
-        source = (RUNTIME / "server.py").read_text(encoding="utf-8")
-        self.assertIn("from current.api import build_current_service", source)
-        self.assertIn("from legacy.api import build_legacy_service", source)
-        self.assertIn('if cloud_type == "current":', source)
-
-    def test_cli_requires_explicit_type(self):
-        result = subprocess.run(
-            [sys.executable, str(RUNTIME / "cli.py"), "list"],
-            capture_output=True, text=True, timeout=10,
-        )
-        self.assertNotEqual(result.returncode, 0)
-
-    def test_current_cli_uses_only_current_type(self):
-        result = subprocess.run(
-            [sys.executable, str(RUNTIME / "cli.py"), "current", "list"],
-            capture_output=True, text=True, timeout=10,
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(json.loads(result.stdout)["cloud_type"], "current")
-
-    def test_legacy_cli_uses_only_legacy_type(self):
-        result = subprocess.run(
-            [sys.executable, str(RUNTIME / "cli.py"), "legacy", "list"],
-            capture_output=True, text=True, timeout=10,
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(json.loads(result.stdout)["cloud_type"], "legacy")
-
-
-class PluginTests(unittest.TestCase):
-    def test_manifest_identity_and_version_consistent(self):
-        portable = json.loads(
-            (PLUGIN / "plugin.json").read_text(encoding="utf-8")
-        )
-        compat = json.loads(
-            (PLUGIN / ".codex-plugin/plugin.json").read_text(encoding="utf-8")
-        )
-        self.assertEqual((portable["name"], portable["version"]),
-                         (compat["name"], compat["version"]))
-        self.assertEqual(portable["version"], server.VERSION)
-
-    def test_exactly_two_domain_skills(self):
-        folder = PLUGIN / "skills"
-        skills = sorted(p.parent.name for p in folder.glob("*/SKILL.md"))
-        self.assertEqual(skills, ["current-discovery", "legacy-discovery"])
-
-    def test_no_obligatory_root_skill(self):
-        self.assertFalse((PLUGIN / "skills/cloudcodex-environment-discovery").exists())
-
-    def test_each_skill_has_matching_frontmatter(self):
-        for name in ("current-discovery", "legacy-discovery"):
-            path = PLUGIN / "skills" / name / "SKILL.md"
-            body = path.read_text(encoding="utf-8")
-            self.assertIn("name: " + name, body)
-            self.assertTrue((path.parent / "agents/openai.yaml").exists())
-
-    def test_manifest_directs_root_without_extra_skill(self):
-        manifest = json.loads(
-            (PLUGIN / "plugin.json").read_text(encoding="utf-8")
-        )
-        prompt = manifest["extensions"]["com.openai"]["interface"]["defaultPrompt"]
-        self.assertIn("$legacy-discovery", prompt)
-        self.assertIn("$current-discovery", prompt)
-
-    def test_standard_package_does_not_register_mcp(self):
-        self.assertFalse((PLUGIN / "mcp.json").exists())
-
-    def test_optional_mcp_template_is_available(self):
-        config = json.loads(
-            (PLUGIN / "optional/mcp.json").read_text(encoding="utf-8")
-        )
-        entry = next(iter(config["mcpServers"].values()))
-        self.assertEqual(entry["type"], "stdio")
-        self.assertIn("PLUGIN_ROOT", " ".join(entry["args"]))
-        self.assertTrue((RUNTIME / "server.py").is_file())
-
-    def test_runtime_has_separate_provider_modules(self):
-        self.assertTrue((RUNTIME / "legacy/provider.py").is_file())
-        self.assertTrue((RUNTIME / "current/provider.py").is_file())
-        self.assertFalse((RUNTIME / "discovery/providers.py").exists())
-
-    def test_no_secret_files_packaged(self):
-        filenames = {p.name.casefold() for p in PLUGIN.rglob("*") if p.is_file()}
-        self.assertFalse(
-            filenames.intersection({".env", "auth.json", "credentials.json"})
-        )
-
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     unittest.main()

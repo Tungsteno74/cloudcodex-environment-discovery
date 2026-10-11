@@ -1,28 +1,42 @@
 ---
 name: current-discovery
-description: Discover and resolve CURRENT-GENERATION Codex Cloud environment configurations before task creation. Use for current Cloud config IDs, published configurations, drafts, user/workspace scopes and environment-configs catalogs. Do not use for Legacy environments.
+description: Discover CURRENT-GENERATION Codex Cloud configurations, immutable IDs, repository associations, drafts and versions before task creation. Use approved catalog sources with scoped pagination and auditable escalation. Not for Legacy catalogs or provisioning.
 ---
 
-# Current-generation Codex Cloud discovery
+# Current Cloud discovery — independent Root procedure
 
-Scope: CURRENT only. Directly invocable by ChatGPT Root. **No custom MCP server is required**; use already-authorized catalog access, and use the optional MCP adapter only after explicit activation. Independent of Legacy, any running Child and Windows Bootstrap.
+Invoke directly from ChatGPT Root. No Legacy dependency, Root dispatcher, running Child, Windows Bootstrap or mandatory MCP process exists. Read `references/current-contract.md`.
 
-## Procedure
+## Establish scope and capability
 
-1. Identify the requested account, current-generation environment, repository, desired scope and whether drafts must be included.
-2. Prefer a supported current-generation catalog connector already authorized for this account. The tool must return verifiable immutable IDs; never infer existence or absence from Codex Tasks.list_environments.
-3. Where permitted, the observed internal client GET /v1/environment-configs requires an **authorized injected transport**; request explicit user/workspace scopes, bounded pagination and draft flags. Client internals are version-sensitive, not public API contracts.
-4. **omitDraft=true excludes drafts**; it does not prove they are absent. Keep draft/published/unknown configuration status separate from execution readiness.
-5. Codex Tasks.list_tasks or read_task may contain onboarding chat hints, but do not establish catalog completeness or a valid configuration ID.
-6. With a compatible connected MCP runtime, call **list_current_environments**, **find_current_environments**, **get_current_environment** or **resolve_current_environment**. No credentials are acquired by this package; without an authorized transport it returns unavailable, never an authoritative empty catalog.
-7. Match verified repository IDs first, then explicit normalized owner/repo. Preserve all ambiguous candidates.
-8. Resolve only a unique live verified configuration with complete requested catalog coverage; otherwise report evidence and missing authorizations.
+1. Determine account, repository/name/ID, user/workspace scope and whether drafts are needed. Reuse valid, scoped authorization; AUTO never supplies new credentials or permissions.
+2. Discover an already-authorized official current-generation catalog connector. Verify the actual capability rather than assuming Codex Tasks.list_environments is the hosted catalog. That inventory previously returned empty while real Cloud configurations existed.
+3. If a compatible local executor is available, resolve the actual plugin path and use its executable configured adapters:
 
-## Invariants
+```text
+python <plugin-root>/runtime/cli.py current doctor --config <operator-config.json>
+python <plugin-root>/runtime/cli.py current list --include-drafts --config <operator-config.json>
+python <plugin-root>/runtime/cli.py current find --repository owner/repo --config <operator-config.json>
+python <plugin-root>/runtime/cli.py current resolve --repository owner/repo --config <operator-config.json>
+```
 
-- Read-only. No environment/task creation, GitHub write, credential extraction, token switching or Cloudflare challenge bypass.
-- Stop on HTTP 401/403 and distinguish denied, unavailable, empty and partial catalogs.
-- The skill never loads Legacy. For both generations the Root can call current-discovery and legacy-discovery independently; no mandatory third Root skill exists.
-- Metadata guidance is advisory, not a deterministic automatic dispatcher.
+`doctor` is a configuration check, not proof of authorization. Configuration is operator-controlled and names hash-pinned host programs. The plugin does not bundle a working authenticated OpenAI host or obtain session credentials; report that gap precisely when no permitted source exists.
 
-See references/current-contract.md for scope and pagination details.
+## Ordered escalation
+
+- **Primary (`primary`)**: existing authorized official/current catalog host. Stop at complete live success, including a verified empty result.
+- **HTTP (`http`)**: an independently approved GET host for `/v1/environment-configs`, using explicit user/workspace scopes, bounded cursor pagination and `omitDraft` flags. A historical GET 200 does not guarantee this channel is usable now.
+- **Onboarding hints (`onboarding`)**: authorized configuration/onboarding reads may provide explicit configuration IDs as indirect candidates. Task IDs, titles and chat timestamps are not environment identities. Completeness and readiness are not inferred.
+- **Snapshot (`snapshot`)**: a supplied sanitized catalog is imported evidence only; it cannot complete live discovery.
+
+Only pre-approved stages execute. `CONFIRM` returns `approval_required` at an unapproved stage; `AUTO` skips it. **Stop on 401/403, rate limiting, host policy denial, account/integrity mismatch, cancellation or deadline expiry.** No token search, account switching, challenge bypass or task creation is an escalation option.
+
+## Validate and report
+
+Distinguish published, draft and unknown configuration state from execution readiness. `omitDraft=true` excludes drafts; it does not prove their absence. Keep configurations/versions distinct and reject conflicting immutable records. Check explicit repository IDs first, then owner/repo associations; display names alone are hints.
+
+Return the selected generation, IDs, associations, account/scope, observation time, completeness and stage trace. Resolve only one fresh, live verified candidate with complete requested coverage. Preserve ambiguity and incomplete catalogs rather than guessing.
+
+When the optional MCP SDK server is already connected, equivalent tools are `list_current_environments`, `find_current_environments`, `get_current_environment`, `resolve_current_environment`. Enabling MCP is not an authentication fix and is not a prerequisite for this skill.
+
+Never invoke Legacy implicitly. A request covering both generations requires two independent Root invocations and separate results. The original Bootstrap three-gate tests and provisioning workflow remain outside this skill.

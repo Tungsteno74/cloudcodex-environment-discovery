@@ -24,3 +24,10 @@ This repository is the independent lifecycle boundary for the read-only Codex Cl
 - Perform repository-first inspection; preserve user changes.
 - Implement only the requested plugin and tests. No automatic GitHub repo creation, pushes, marketplace edits or plugin account publication from a coding agent: the parent Root owns these effects.
 - Run relevant tests and package validation. Return compact status, changed paths and verified limitations.
+
+## v0.3.0 continuation
+- Read docs/PROJECT_MEMORY.md before significant changes; retain the distinction between historical evidence, simulated tests and live acceptance.
+- The optional MCP server uses the official Python SDK. Do not reintroduce a custom JSON-RPC lifecycle or require MCP for CLI/skills.
+- Operator host commands require approval and integrity pins; tool arguments must never select executables, tokens, arbitrary URLs or configuration files.
+- Run the core test profile first, then tools/validate.py --with-mcp with its declared optional dependencies. Fixture success is not Cloud authorization.
+- The native-session implementation attempt was blocked and did not land. Do not reroute that same attempt through another tool/channel.

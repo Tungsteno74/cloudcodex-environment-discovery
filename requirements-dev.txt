@@ -1,0 +1,2 @@
+# Formatting/linting only; not a core runtime dependency.
+ruff==0.17.0

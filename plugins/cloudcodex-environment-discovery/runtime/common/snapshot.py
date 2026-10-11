@@ -25,6 +25,10 @@ class SnapshotEnvironmentProvider:
     ) -> "SnapshotEnvironmentProvider":
         # The CLI opts into catalog snapshots explicitly, never credential files.
         parts = {part.casefold() for part in path.parts}
+        # Resolve aliases before opening an explicitly supplied catalog file.
+        if path.exists():
+            path = path.resolve(strict=True)
+            parts |= {part.casefold() for part in path.parts}
         if (path.name.casefold() in {"auth.json", "credentials.json", ".env"}
                 or ".codex" in parts):
             raise ValueError("credential paths cannot be used as catalogs")
@@ -43,7 +47,8 @@ class SnapshotEnvironmentProvider:
             parsed = [
                 parse_environment(
                     item, self.name, "imported", self._source,
-                    evidence="imported", account=account
+                    evidence="imported", account=None,
+                    observed_at=self._payload.get("observed_at") if isinstance(self._payload, dict) else None
                 )
                 for item in entries
             ]

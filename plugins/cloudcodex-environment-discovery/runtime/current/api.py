@@ -12,9 +12,10 @@ from .provider import CurrentCloudEnvironmentProvider
 def build_current_service(
     provider: Optional[CurrentCloudEnvironmentProvider] = None,
 ) -> EnvironmentDiscoveryService:
-    return EnvironmentDiscoveryService(
-        "current", provider if provider is not None else CurrentCloudEnvironmentProvider()
-    )
+    if provider is None:
+        from common.configuration import DiscoveryRuntime
+        return DiscoveryRuntime().service("current")
+    return EnvironmentDiscoveryService("current", provider)
 
 
 def build_current_snapshot_service(path: Path) -> EnvironmentDiscoveryService:

@@ -1,28 +1,44 @@
 ---
 name: legacy-discovery
-description: Discover and resolve existing Codex Cloud LEGACY environments before any task is created. Use for Legacy environment IDs, old Codex Cloud selector, zero-task environments and Legacy GitHub repository associations. Do not use for current-generation Cloud configs.
+description: Discover existing Codex Cloud LEGACY environments and immutable IDs before creating tasks. Use Legacy native catalog evidence or an approved Legacy GET host, with explicit read-only escalation and repository matching. Not for current-generation configs or provisioning.
 ---
 
-# Codex Cloud Legacy environment discovery
+# Legacy discovery — independent Root procedure
 
-Scope: LEGACY only. This skill is directly discoverable by ChatGPT Root. **No custom MCP server is required**; use authorized native Root/CLI tools, and use the optional MCP adapter only after explicit activation. It needs no coordinating Root skill, running Child, Cloud task or Windows Bootstrap.
+Use directly from ChatGPT Root. Neither a Root dispatcher skill, a running Child, Windows Bootstrap nor MCP is required. Never create a task merely to obtain an environment ID.
 
-## Procedure
+## Establish the authorized read path
 
-1. Determine the requested repository, account, environment ID or name. Without a repository, list the Legacy catalog rather than inferring GitHub associations from environment labels.
-2. Prefer the authenticated native **codex cloud** selector, including its **o: Set Env** operation, when available through an authorized interactive terminal. It has enumerated Legacy environments with zero tasks. **codex cloud list --json enumerates tasks, not environments.**
-3. Read only legitimate selector catalog evidence. Capture immutable ID, label, explicit GitHub association and observation time. A visible name without immutable ID is a candidate, not verified.
-4. If the Root has a connected authorized Legacy catalog client, a controlled GET /backend-api/wham/environments is an optional version-sensitive fallback. Never extract auth.json, cookies or tokens. Stop on 401/403.
-5. For a compatible connected local MCP runtime, call **list_legacy_environments**, **find_legacy_environments**, **get_legacy_environment** or **resolve_legacy_environment**. The packaged runtime has no credential acquisition and no default interactive selector reader; without authorized injection it returns unavailable.
-6. Match repository ID first, then explicit owner/repo association. Environment-label similarity is a hint only. One repository can have multiple environments.
-7. Resolve only a single **live verified** environment with complete requested Legacy coverage. Otherwise return candidates, catalog_complete=false, provenance and exact missing capability.
-8. Return a normalized EnvironmentDescriptor to Root. Cloud task creation, provisioning and Windows Bootstrap are separate later operations.
+1. Resolve the actual installed plugin/repository path; do not guess private cache paths. Read `references/legacy-contract.md`.
+2. Determine the requested account and repository/name/ID. Reuse only current, scoped consent; do not reinterpret plugin installation or AUTO as permission to acquire credentials.
+3. Discover already-connected native catalog tools. The historical `codex cloud` selector displayed immutable IDs, including zero-task environments; **`codex cloud list --json` is a task list, not a catalog**. A matching environment label is insufficient evidence.
+4. Use an existing authorized native catalog tool only if it exposes the needed data. The integrated native-session reader was blocked during implementation and is **not bundled**. Do not recreate it through another channel or invent a JSON CLI subcommand.
 
-## Invariants
+## Execute the implemented adapters
 
-- Read-only. No task creation, GitHub writes, configuration mutation or privilege escalation.
-- Codex Tasks.list_environments is NOT the full hosted Cloud catalog. Empty, partial, stale, unauthorized and unavailable are different.
-- This skill does not invoke the current Cloud provider. Root may independently invoke **legacy-discovery** and **current-discovery** for explicit requests concerning both generations.
-- No security challenge bypass or conjectural immutable IDs.
+When a compatible local executor is available, the standard path is the CLI, with no MCP process:
 
-See references/legacy-contract.md for Legacy evidence and error semantics.
+```text
+python <plugin-root>/runtime/cli.py legacy doctor --config <operator-config.json>
+python <plugin-root>/runtime/cli.py legacy list --config <operator-config.json>
+python <plugin-root>/runtime/cli.py legacy find --repository owner/repo --config <operator-config.json>
+python <plugin-root>/runtime/cli.py legacy resolve --repository owner/repo --config <operator-config.json>
+```
+
+The startup configuration names and hash-pins a separately approved catalog host; it contains no credentials. `doctor` checks configuration, not authentication. A raw interactive CLI is not a JSON host. If no authorized host exists, report the missing capability instead of claiming successful discovery.
+
+## Ordered escalation
+
+- **Primary:** approved native catalog host (`kind: primary`). Prefer it and stop on complete, verified success, including a verified empty catalog.
+- **HTTP fallback:** only an independently approved `kind: http` host, issuing GET to the known Legacy catalog. Repository searches may use the validated by-repository route; this proves association without guessing from a label.
+- **Snapshot:** explicitly supplied sanitized catalog (`kind: snapshot`) is imported candidate evidence only. It never becomes live or complete.
+
+`AUTO` may proceed only through approved stages. `CONFIRM` returns `approval_required` at an unapproved stage. **401/403, rate limiting, host policy denial, identity/integrity mismatch, cancellation or timeout stop the sequence.** Do not search for tokens, switch accounts or bypass a challenge to continue.
+
+## Return and optional MCP
+
+Return the exact ID, explicit repository association, account/scope, source, observation time, completeness and stage trace. Resolve only one live, fresh verified candidate in a complete requested catalog; otherwise retain ambiguity or a precise blocker. Cached IDs and Codex Tasks inventories do not establish absence or live truth.
+
+If the optional SDK server is already enabled, equivalent tools are `list_legacy_environments`, `find_legacy_environments`, `get_legacy_environment`, `resolve_legacy_environment`. Do not enable MCP merely to execute this skill.
+
+This skill never invokes Current or performs provisioning. Root may invoke the independent Current skill separately when both generations are explicitly requested.

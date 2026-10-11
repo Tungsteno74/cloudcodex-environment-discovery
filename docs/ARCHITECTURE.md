@@ -75,3 +75,11 @@ Current live transport will be implemented independently as soon as an officiall
 ## Validation
 
 Offline provider behavior, tool dispatch, framing, account identity, repository matching and release structure are tested without live Cloud writes. CI runs Python 3.9, 3.12 and 3.13, including **independent Legacy and Current test suites**.
+
+## v0.3.0 execution wiring
+
+Both CLI and optional MCP now build a startup-configured DiscoveryRuntime. Operator-approved host commands provide primary catalog or GET transport boundaries. EscalatingProvider runs only approved stages, records outcomes and stops on denials, rate limits, identity conflicts and operation cancellation/deadlines. Snapshot and onboarding stages remain non-authoritative.
+
+The core catalog reader preserves repository associations, versions, drafts, source scope and account continuity. Native/direct provider code remains isolated by generation. The integrated native-session adapter was blocked by a tool safety control; it is not an available default implementation.
+
+The optional server delegates the MCP protocol to the official SDK, while retaining application-level schemas, sanitized errors, read-only annotations, bounded results and progress. No remote HTTP listener or credential broker is exposed. See ADAPTERS.md, MCP_OPTIONAL.md and PROJECT_MEMORY.md for current contracts and observed limitations.

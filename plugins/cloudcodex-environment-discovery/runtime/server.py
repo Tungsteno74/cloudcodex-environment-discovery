@@ -1,22 +1,21 @@
-"""Independent Legacy/Current read-only MCP stdio server.
+"""Optional MCP stdio server, implemented with the official MCP Python SDK.
 
-The MCP tool name determines the provider; there is no implicit mixed list.
-Each provider is imported lazily so Legacy can be retired without modifying
-Current's implementation. This process never extracts credentials.
+Core skills/CLI remain Python 3.9+ and require no MCP process. This adapter needs
+Python 3.10+ plus optional/requirements-mcp.txt. It is never auto-registered.
 """
-from __future__ import annotations
-
+import argparse
 import json
-import sys
-from typing import Any, Callable, Dict, IO, Mapping, Optional, Tuple
+import logging
+from pathlib import Path
+from typing import Optional
 
-MAX_FRAME_BYTES = 1024 * 1024
+from common.configuration import DiscoveryRuntime, load_configuration
+from common.operation import Operation, OperationCancelled, OperationTimedOut, operation_scope
+
 SERVER_NAME = "cloudcodex-environment-discovery"
-VERSION = "0.2.1"
-
-# Every externally callable method targets exactly one Cloud generation.
-# No generic "all" or cross-provider catalog operation is exposed.
-TOOLS: Dict[str, Tuple[str, str]] = {
+VERSION = "0.3.0"
+MAX_RESULT_BYTES = 1024 * 1024
+TOOLS = {
     "list_legacy_environments": ("legacy", "list_environments"),
     "find_legacy_environments": ("legacy", "find_environments"),
     "get_legacy_environment": ("legacy", "get_environment"),
@@ -26,181 +25,154 @@ TOOLS: Dict[str, Tuple[str, str]] = {
     "get_current_environment": ("current", "get_environment"),
     "resolve_current_environment": ("current", "resolve_environment"),
 }
-
-
-def make_default_service(cloud_type: str) -> Any:
-    """Load only the selected provider implementation."""
-    if cloud_type == "legacy":
-        from legacy.api import build_legacy_service
-        return build_legacy_service()
-    if cloud_type == "current":
-        from current.api import build_current_service
-        return build_current_service()
-    raise ValueError("unsupported cloud type")
-
-
-def read_frame(input_stream: IO[bytes]) -> Optional[Dict[str, Any]]:
-    """Read one newline-delimited JSON-RPC object; bounded for safety."""
-    raw = input_stream.readline(MAX_FRAME_BYTES + 2)
-    if not raw:
-        return None
-    if len(raw) > MAX_FRAME_BYTES + 1 or not raw.endswith(b"\n"):
-        raise ValueError("invalid or oversized MCP message")
-    message = json.loads(raw.decode("utf-8"))
-    if not isinstance(message, dict):
-        raise ValueError("MCP message must be a JSON object")
-    return message
-
-
-def write_frame(output_stream: IO[bytes], payload: Mapping[str, Any]) -> None:
-    raw = json.dumps(
-        payload, separators=(",", ":"), ensure_ascii=False
-    ).encode("utf-8")
-    if len(raw) > MAX_FRAME_BYTES:
-        raise ValueError("MCP response exceeds maximum size")
-    output_stream.write(raw + b"\n")
-    output_stream.flush()
+ERROR_STATUSES = {"unavailable", "unauthorized", "forbidden", "approval_required", "invalid_response",
+                  "invalid_request", "timeout", "cancelled", "not_verifiable", "response_too_large", "rate_limited"}
 
 
 def tool_specs() -> list:
-    """Advertise exactly eight domain-specific tools."""
-    operations = {
-        "list": (
-            "List existing {domain} Cloud environments with completeness and provenance.",
-            {},
-            [],
-        ),
-        "find": (
-            "Find existing {domain} Cloud environments by explicit repository identity.",
-            {"repository": {"type": "string"}},
-            ["repository"],
-        ),
-        "get": (
-            "Read an existing {domain} Cloud environment by immutable ID.",
-            {"environment_id": {"type": "string"}},
-            ["environment_id"],
-        ),
-        "resolve": (
-            "Resolve only one live, verified {domain} Cloud environment.",
-            {"repository": {"type": "string"}, "name": {"type": "string"}},
-            [],
-        ),
-    }
-    names = {
-        "list": "list_{domain}_environments",
-        "find": "find_{domain}_environments",
-        "get": "get_{domain}_environment",
-        "resolve": "resolve_{domain}_environment",
-    }
+    """Explicit strict input/output contracts, independent of SDK import."""
     specs = []
-    for domain in ("legacy", "current"):
-        for operation in ("list", "find", "get", "resolve"):
-            description, properties, required = operations[operation]
-            schema_properties = dict(properties)
-            schema_properties["account"] = {"type": "string"}
-            if operation != "get":
-                schema_properties["include_drafts"] = {"type": "boolean"}
-            specs.append({
-                "name": names[operation].format(domain=domain),
-                "description": description.format(domain=domain),
-                "inputSchema": {
-                    "type": "object",
-                    "properties": schema_properties,
-                    "required": required,
-                    "additionalProperties": False,
-                },
-            })
-    assert {spec["name"] for spec in specs} == set(TOOLS)
+    for name, (domain, operation) in TOOLS.items():
+        properties = {"account": {"type": "string", "minLength": 1, "maxLength": 256}}
+        required = []
+        if operation != "get_environment":
+            properties["include_drafts"] = {"type": "boolean", "default": False}
+        if operation in {"find_environments", "resolve_environment"}:
+            properties["repository"] = {"type": "string", "minLength": 1, "maxLength": 1024}
+        if operation == "find_environments":
+            required.append("repository")
+        if operation == "get_environment":
+            properties["environment_id"] = {"type": "string", "minLength": 1, "maxLength": 4096}
+            required.append("environment_id")
+        if operation == "resolve_environment":
+            properties["name"] = {"type": "string", "minLength": 1, "maxLength": 4096}
+        specs.append({
+            "name": name,
+            "description": (operation.replace("_", " ").capitalize() + " for " + domain
+                            + " Codex Cloud only. Read-only; provenance and escalation trace included. "
+                            "Unavailable is not an empty verified catalog."),
+            "inputSchema": {"type": "object", "properties": properties,
+                            "required": required, "additionalProperties": False},
+            "outputSchema": {"type": "object", "required": ["cloud_type", "status", "catalog_complete"],
+                             "properties": {"cloud_type": {"const": domain}, "status": {"type": "string"},
+                                            "catalog_complete": {"type": "boolean"}},
+                             "additionalProperties": True},
+            "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                            "idempotentHint": True, "openWorldHint": True},
+        })
     return specs
 
 
-def handle_request(
-    message: Mapping[str, Any],
-    service_factory: Optional[Callable[[str], Any]] = None,
-) -> Optional[Dict[str, Any]]:
-    """Handle one JSON-RPC request with a lazily loaded target service."""
-    method = message.get("method")
-    if not isinstance(method, str) or "id" not in message:
-        return None  # Notification, not a command requiring response.
-    request_id = message["id"]
-    try:
-        if method == "initialize":
-            params = message.get("params") or {}
-            if not isinstance(params, dict):
-                raise ValueError("invalid initialize arguments")
-            version = params.get("protocolVersion") or "2024-11-05"
-            result: Dict[str, Any] = {
-                "protocolVersion": version,
-                "capabilities": {"tools": {"listChanged": False}},
-                "serverInfo": {"name": SERVER_NAME, "version": VERSION},
-            }
-        elif method == "ping":
-            result = {}
-        elif method == "tools/list":
-            result = {"tools": tool_specs()}
-        elif method == "tools/call":
-            params = message.get("params") or {}
-            if not isinstance(params, dict):
-                raise ValueError("invalid tool call arguments")
-            tool_name = params.get("name")
-            arguments = params.get("arguments") or {}
-            if not isinstance(arguments, dict):
-                raise ValueError("tool arguments must be an object")
-            if tool_name not in TOOLS:
-                raise KeyError("unknown discovery tool")
-            if "cloud_type" in arguments:
-                raise ValueError("cloud_type is fixed by the selected tool")
-            allowed = next(
-                spec["inputSchema"]["properties"]
-                for spec in tool_specs() if spec["name"] == tool_name
-            )
-            if any(key not in allowed for key in arguments):
-                raise ValueError("unexpected discovery tool argument")
-            domain, method_name = TOOLS[tool_name]
-            factory = service_factory or make_default_service
-            service = factory(domain)
-            if service.cloud_type != domain:
-                raise ValueError("provider identity mismatch")
-            data = getattr(service, method_name)(**arguments)
-            result = {
-                "content": [{
-                    "type": "text",
-                    "text": json.dumps(data, ensure_ascii=False),
-                }],
-                "structuredContent": data,
-                "isError": False,
-            }
-        else:
-            return {
-                "jsonrpc": "2.0", "id": request_id,
-                "error": {"code": -32601, "message": "Method not found"},
-            }
-        return {"jsonrpc": "2.0", "id": request_id, "result": result}
-    except (ValueError, TypeError, KeyError):
-        # No request args, paths or raw HTTP error bodies in exceptions.
-        return {
-            "jsonrpc": "2.0", "id": request_id,
-            "error": {"code": -32602, "message": "Invalid discovery request"},
-        }
-    except Exception:
-        return {
-            "jsonrpc": "2.0", "id": request_id,
-            "error": {"code": -32603, "message": "Read-only provider error"},
-        }
+def build_server(runtime: Optional[DiscoveryRuntime] = None):
+    """Use SDK lifecycle, version negotiation, notifications and cancellation."""
+    import anyio
+    from jsonschema import Draft202012Validator
+    from mcp.server.lowlevel import Server
+    from mcp.types import CallToolResult, TextContent, Tool
 
+    runtime = runtime or DiscoveryRuntime()
+    server = Server(SERVER_NAME, version=VERSION,
+                    instructions="Read-only independent Legacy/Current discovery; no task creation or credential extraction.")
+    definitions = {spec["name"]: Tool(**spec) for spec in tool_specs()}
+    inputs = {name: Draft202012Validator(tool.inputSchema) for name, tool in definitions.items()}
+    outputs = {name: Draft202012Validator(tool.outputSchema) for name, tool in definitions.items()}
 
-def serve(input_stream: IO[bytes], output_stream: IO[bytes]) -> None:
-    while True:
+    @server.list_tools()
+    async def list_tools():
+        return list(definitions.values())
+
+    def result_for(data: dict, is_error: bool = False):
+        return CallToolResult(content=[TextContent(type="text", text=json.dumps(data, ensure_ascii=False))],
+                              structuredContent=data, isError=is_error)
+
+    # Use the SDK's JSON Schema dependency, but deliberately suppress raw input
+    # values in its default validation errors: tool arguments can be sensitive.
+    @server.call_tool(validate_input=False)
+    async def call_tool(name: str, arguments: dict):
+        if name not in TOOLS:
+            return CallToolResult(content=[TextContent(type="text", text="Unknown discovery tool")], isError=True)
+        domain, operation_name = TOOLS[name]
+        if not inputs[name].is_valid(arguments):
+            return result_for({"cloud_type": domain, "status": "invalid_request", "catalog_complete": False,
+                               "warnings": ["Arguments do not match the read-only tool schema"]}, True)
+        context = server.request_context
+        progress_token = context.meta.progressToken if context.meta is not None else None
+        count = 0
+
+        async def progress(stage: str):
+            nonlocal count
+            count += 1
+            if progress_token is not None:
+                await context.session.send_progress_notification(progress_token, float(count), None, stage)
+
+        def report(stage: str):
+            anyio.from_thread.run(progress, stage)
+
+        operation = Operation(timeout=runtime.timeout, progress=report)
+
+        def execute():
+            with operation_scope(operation):
+                service = runtime.service(domain)
+                return getattr(service, operation_name)(**arguments)
+
         try:
-            message = read_frame(input_stream)
-        except (ValueError, UnicodeError, json.JSONDecodeError):
-            return  # Invalid framing has no safe request ID.
-        if message is None:
-            return
-        response = handle_request(message)
-        if response is not None:
-            write_frame(output_stream, response)
+            data = await anyio.to_thread.run_sync(execute, abandon_on_cancel=True)
+        except OperationTimedOut:
+            data = {"cloud_type": domain, "status": "timeout", "catalog_complete": False}
+        except OperationCancelled:
+            data = {"cloud_type": domain, "status": "cancelled", "catalog_complete": False}
+        except (ValueError, OSError, TypeError, RuntimeError):
+            data = {"cloud_type": domain, "status": "invalid_response", "catalog_complete": False,
+                    "warnings": ["Read-only adapter failed; raw host output was suppressed"]}
+        except BaseException:
+            operation.cancelled.set()
+            raise  # SDK cancellation, not an authorization/retry signal.
+        finally:
+            operation.cancelled.set()
+        if not outputs[name].is_valid(data):
+            data = {"cloud_type": domain, "status": "invalid_response", "catalog_complete": False}
+        if len(json.dumps(data, ensure_ascii=False).encode("utf-8")) > MAX_RESULT_BYTES:
+            data = {"cloud_type": domain, "status": "response_too_large", "catalog_complete": False,
+                    "warnings": ["Use an explicit narrower provider scope or CLI for this catalog"]}
+        provider_status = data.get("provider", {}).get("status")
+        return result_for(data, data.get("status") in ERROR_STATUSES or provider_status in ERROR_STATUSES)
+
+    return server
+
+
+async def run_stdio(runtime: DiscoveryRuntime) -> None:
+    from mcp.server.stdio import stdio_server
+    server = build_server(runtime)
+    async with stdio_server() as (read_stream, write_stream):
+        await server.run(read_stream, write_stream, server.create_initialization_options())
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--config", type=Path, help="Operator-controlled adapter configuration")
+    args = parser.parse_args(argv)
+    try:
+        import anyio
+        runtime = DiscoveryRuntime(load_configuration(args.config))
+        logging.basicConfig(level=logging.ERROR)
+        # SDK parser diagnostics may include invalid client input; keep them
+        # out of logs. Public errors are structured and sanitized above.
+        sdk_logger = logging.getLogger("mcp")
+        sdk_logger.handlers = [logging.NullHandler()]
+        sdk_logger.propagate = False
+        anyio.run(run_stdio, runtime)
+    except ImportError:
+        import sys
+        print("Optional MCP requires Python 3.10+ and optional/requirements-mcp.txt", file=sys.stderr)
+        return 2
+    except (ValueError, OSError, TypeError):
+        import sys
+        print("Invalid operator discovery configuration; no server started", file=sys.stderr)
+        return 2
+    except KeyboardInterrupt:
+        return 130
+    return 0
 
 
 if __name__ == "__main__":
-    serve(sys.stdin.buffer, sys.stdout.buffer)
+    raise SystemExit(main())

@@ -1,9 +1,11 @@
-"""Normalized data contracts for Root-level Cloud environment discovery."""
+"""Typed catalog contracts; provenance and configuration state are independent."""
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
+import re
 from typing import Any, Dict, List, Mapping, Optional, Tuple
+from urllib.parse import urlsplit
 
 
 def now_utc() -> str:
@@ -13,15 +15,23 @@ def now_utc() -> str:
 def normalize_repository(value: Optional[str]) -> Optional[str]:
     if not isinstance(value, str):
         return None
-    normalized = value.strip().rstrip("/")
-    if normalized.lower().startswith("https://github.com/"):
-        normalized = normalized[len("https://github.com/"):]
-    if normalized.endswith(".git"):
-        normalized = normalized[:-4]
-    parts = normalized.split("/")
-    if len(parts) != 2 or not all(parts):
+    name = value.strip().rstrip("/")
+    if name.startswith("git@github.com:"):
+        name = name[len("git@github.com:"):]
+    elif "://" in name:
+        parsed = urlsplit(name)
+        if (parsed.scheme not in {"https", "ssh"} or parsed.hostname != "github.com"
+                or parsed.query or parsed.fragment or parsed.password):
+            return None
+        name = parsed.path.lstrip("/")
+    if name.lower().endswith(".git"):
+        name = name[:-4]
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9_.-]+", name):
         return None
-    return f"{parts[0].lower()}/{parts[1].lower()}"
+    owner, repository = name.split("/")
+    if repository in {".", ".."}:
+        return None
+    return (owner + "/" + repository).lower()
 
 
 @dataclass(frozen=True)
@@ -39,16 +49,18 @@ class EnvironmentDescriptor:
     evidence: str = "indirect"
     observed_at: str = field(default_factory=now_utc)
     repository_match: str = "not_evaluated"
+    repositories: Tuple[Mapping[str, Optional[str]], ...] = ()
+    configuration_version: Optional[str] = None
 
     def __post_init__(self) -> None:
-        if not isinstance(self.cloud_type, str) or not self.cloud_type.strip():
-            raise ValueError("cloud_type must be a nonempty string")
-        if not self.environment_id.strip():
-            raise ValueError("environment_id is required")
+        for label, value in (("cloud_type", self.cloud_type), ("environment_id", self.environment_id),
+                             ("name", self.name)):
+            if not isinstance(value, str) or not value.strip() or len(value) > 4096:
+                raise ValueError("Invalid descriptor field: " + label)
         if self.evidence not in {"live", "imported", "indirect", "cache"}:
-            raise ValueError("evidence must be live/imported/indirect/cache")
+            raise ValueError("Invalid evidence category")
         if self.configuration_state not in {"draft", "published", "unknown"}:
-            raise ValueError("invalid configuration_state")
+            raise ValueError("Invalid configuration state")
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -67,135 +79,110 @@ class ProviderResult:
     evidence: str = "indirect"
     warnings: List[str] = field(default_factory=list)
     observed_at: str = field(default_factory=now_utc)
+    attempts: List[Dict[str, Any]] = field(default_factory=list)
+    account: Optional[str] = None
+    account_verified: bool = False
+    reason: Optional[str] = None
+    source: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
-            "provider": self.provider,
-            "status": self.status,
-            "catalog_complete": self.catalog_complete,
-            "scope": self.scope,
-            "evidence": self.evidence,
-            "warnings": list(self.warnings),
-            "observed_at": self.observed_at,
-            "count": len(self.environments),
-        }
+        output = asdict(self)
+        output.pop("environments")
+        output["count"] = len(self.environments)
+        return output
 
 
 @dataclass(frozen=True)
 class HttpResponse:
-    """Sanitized HTTP response.
-
-    Caller-owned transport must ensure authentication and never log secrets.
-    Only the JSON-decoded body is passed here. Error bodies are never reported.
-    """
-
     status: int
     body: Any = None
+    account: Optional[str] = None
+    account_verified: bool = False
+    observed_at: Optional[str] = None
+    content_type: str = "application/json"
 
 
-def parse_environment(
-    item: Mapping[str, Any],
-    cloud_type: str,
-    scope: str,
-    source: str,
-    evidence: str = "live",
-    account: Optional[str] = None,
-) -> EnvironmentDescriptor:
-    """Parse known endpoint variants without inventing IDs or repository associations."""
-    environment_id = (
-        item.get("environment_id")
-        or item.get("environmentId")
-        or item.get("configId")
-        or item.get("id")
-    )
-    if not isinstance(environment_id, str) or not environment_id.strip():
-        raise ValueError("item lacks a string environment/configuration ID")
+def _associations(item: Mapping[str, Any]) -> Tuple[Mapping[str, Optional[str]], ...]:
+    found = []
+    values = list(item.get("repositories", [])) if isinstance(item.get("repositories"), list) else []
+    values.append(item.get("repository"))
+    values.append({"full_name": item.get("repository_full_name") or item.get("repo"),
+                   "id": item.get("repository_id") or item.get("repositoryId")})
+    for value in values:
+        if isinstance(value, str):
+            name, identifier = normalize_repository(value), None
+        elif isinstance(value, dict):
+            name = normalize_repository(value.get("full_name") or value.get("name_with_owner")
+                                        or value.get("repository_full_name"))
+            identifier = value.get("repository_id") or value.get("id")
+            identifier = str(identifier) if isinstance(identifier, (str, int)) and not isinstance(identifier, bool) else None
+            if not name and isinstance(value.get("owner"), str) and isinstance(value.get("name"), str):
+                name = normalize_repository(value["owner"] + "/" + value["name"])
+        else:
+            continue
+        association = {"repository": name, "repository_id": identifier}
+        if (name or identifier) and association not in found:
+            found.append(association)
+    return tuple(found)
 
-    name = item.get("name") or item.get("label") or item.get("display_name")
-    if not isinstance(name, str) or not name.strip():
-        name = environment_id
 
-    repo_name: Optional[str] = None
-    repo_id: Optional[str] = None
-
-    repository = item.get("repository")
-    if isinstance(repository, dict):
-        candidate = repository.get("full_name") or repository.get("name_with_owner")
-        repo_name = normalize_repository(candidate)
-        raw_id = repository.get("id") or repository.get("repository_id")
-        repo_id = str(raw_id) if raw_id is not None else None
-    elif isinstance(repository, str):
-        repo_name = normalize_repository(repository)
-
-    repositories = item.get("repositories")
-    if isinstance(repositories, list) and len(repositories) == 1:
-        association = repositories[0]
-        if isinstance(association, dict):
-            repo_name = repo_name or normalize_repository(
-                association.get("full_name")
-                or association.get("repository_full_name")
-                or association.get("name_with_owner")
-            )
-            raw_id = association.get("repository_id") or association.get("id")
-            repo_id = repo_id or (str(raw_id) if raw_id is not None else None)
-
-    repo_name = repo_name or normalize_repository(
-        item.get("repository_full_name") or item.get("repo")
-    )
-    raw_id = item.get("repository_id") or item.get("repositoryId")
-    repo_id = repo_id or (str(raw_id) if raw_id is not None else None)
-
+def parse_environment(item: Mapping[str, Any], cloud_type: str, scope: str,
+                      source: str, evidence: str = "live", account: Optional[str] = None,
+                      observed_at: Optional[str] = None) -> EnvironmentDescriptor:
+    if not isinstance(item, dict):
+        raise ValueError("Environment record is not an object")
+    identifier = (item.get("environment_id") or item.get("environmentId")
+                  or item.get("configId") or item.get("configuration_id") or item.get("id"))
+    if not isinstance(identifier, str) or not identifier.strip():
+        raise ValueError("Environment record has no immutable ID")
+    name = item.get("name") or item.get("label") or item.get("display_name") or identifier
+    associations = _associations(item)
+    primary = associations[0] if len(associations) == 1 else {}
     state = item.get("configuration_state") or item.get("state") or item.get("status")
+    state = state.lower() if isinstance(state, str) else "unknown"
     if item.get("is_draft") is True or item.get("draft") is True:
-        config_state = "draft"
+        state = "draft"
     elif item.get("published") is True or item.get("is_published") is True:
-        config_state = "published"
-    elif isinstance(state, str) and state.lower() in {"draft", "published"}:
-        config_state = state.lower()
-    else:
-        config_state = "unknown"
-
+        state = "published"
+    if state not in {"draft", "published"}:
+        state = "unknown"
+    version = item.get("configuration_version") or item.get("version")
+    if not isinstance(version, (str, int)) or isinstance(version, bool):
+        version = None
+    observed_account = item.get("account") if isinstance(item.get("account"), str) else None
     return EnvironmentDescriptor(
-        cloud_type=cloud_type,
-        environment_id=environment_id,
-        name=name,
-        repository=repo_name,
-        repository_id=repo_id,
-        account=account or (
-            item.get("account") if isinstance(item.get("account"), str) else None
-        ),
-        scope=scope,
-        configuration_state=config_state,
-        discovery_source=source,
-        evidence=evidence,
+        cloud_type=cloud_type, environment_id=identifier, name=name,
+        repository=primary.get("repository"), repository_id=primary.get("repository_id"),
+        repositories=associations, account=account or observed_account, scope=scope,
+        configuration_state=state, configuration_version=str(version) if version is not None else None,
+        discovery_source=source, evidence=evidence, observed_at=observed_at or now_utc(),
     )
 
 
 def extract_page(body: Any) -> Tuple[List[Mapping[str, Any]], Optional[str]]:
-    """Parse known catalog response envelopes. Unknown shapes raise, never mean empty."""
+    """Accept known envelopes only. Conflicting/unfinished cursors fail closed."""
     if isinstance(body, list):
-        raw_items = body
-        cursor = None
+        items, cursor = body, None
     elif isinstance(body, dict):
-        keys = ("environment_configs", "environmentConfigs", "environments",
-                "configs", "items", "results", "data")
-        found = next((key for key in keys if isinstance(body.get(key), list)), None)
-        if found is None:
-            raise ValueError("unrecognized catalog response envelope")
-        raw_items = body[found]
-        cursor = body.get("next_cursor") or body.get("nextCursor")
-        if cursor is None:
-            pagination = body.get("pagination")
-            if isinstance(pagination, dict):
-                cursor = pagination.get("next_cursor") or pagination.get("nextCursor")
-        if body.get("has_more") is True or body.get("hasMore") is True:
-            if cursor is None:
-                raise ValueError("has_more true without next cursor")
+        keys = ("environment_configs", "environmentConfigs", "environments", "configs", "items", "results", "data")
+        containers = [body[key] for key in keys if isinstance(body.get(key), list)]
+        if len(containers) != 1:
+            raise ValueError("Unknown or ambiguous catalog envelope")
+        items = containers[0]
+        cursors = [body[k] for k in ("next_cursor", "nextCursor") if body.get(k) not in (None, "")]
+        paging = body.get("pagination")
+        if isinstance(paging, dict):
+            cursors.extend(paging[k] for k in ("next_cursor", "nextCursor") if paging.get(k) not in (None, ""))
+        if any(not isinstance(c, str) or len(c) > 4096 for c in cursors) or len(set(cursors)) > 1:
+            raise ValueError("Invalid or conflicting pagination cursor")
+        cursor = cursors[0] if cursors else None
+        has_more = body.get("has_more", body.get("hasMore"))
+        if isinstance(paging, dict):
+            has_more = paging.get("has_more", paging.get("hasMore", has_more))
+        if has_more is True and not cursor or has_more is False and cursor:
+            raise ValueError("Inconsistent pagination state")
     else:
-        raise ValueError("catalog response must be a mapping or array")
-
-    if not all(isinstance(item, dict) for item in raw_items):
-        raise ValueError("catalog contains non-object items")
-    if cursor is not None and not isinstance(cursor, str):
-        raise ValueError("catalog next cursor is not a string")
-    return list(raw_items), cursor
+        raise ValueError("Catalog is neither an array nor an object")
+    if not all(isinstance(item, dict) for item in items):
+        raise ValueError("Catalog contains non-object records")
+    return list(items), cursor
