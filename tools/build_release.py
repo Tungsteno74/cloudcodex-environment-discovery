@@ -7,14 +7,14 @@ from pathlib import Path
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-PLUGIN = ROOT / "plugins" / "codex-cloud-environment-discovery"
+PLUGIN = ROOT / "plugins" / "cloudcodex-environment-discovery"
 VERSION = json.loads((PLUGIN / "plugin.json").read_text(encoding="utf-8"))["version"]
 DIST = ROOT / "dist"
 
 
 def build(output_dir: Path = DIST) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
-    archive = output_dir / f"codex-cloud-environment-discovery-{VERSION}.zip"
+    archive = output_dir / f"cloudcodex-environment-discovery-{VERSION}.zip"
     entries = sorted(
         [path for path in PLUGIN.rglob("*") if path.is_file()
          and "__pycache__" not in path.parts

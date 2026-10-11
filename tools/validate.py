@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PLUGIN = ROOT / "plugins" / "codex-cloud-environment-discovery"
+PLUGIN = ROOT / "plugins" / "cloudcodex-environment-discovery"
 
 
 def validate_structure() -> None:
@@ -34,9 +34,9 @@ def validate_structure() -> None:
         "runtime/discovery/models.py",
         "runtime/discovery/providers.py",
         "runtime/discovery/service.py",
-        "skills/codex-cloud-environment-discovery/SKILL.md",
-        "skills/codex-cloud-environment-discovery/agents/openai.yaml",
-        "skills/codex-cloud-environment-discovery/references/discovery-contract.md",
+        "skills/cloudcodex-environment-discovery/SKILL.md",
+        "skills/cloudcodex-environment-discovery/agents/openai.yaml",
+        "skills/cloudcodex-environment-discovery/references/discovery-contract.md",
     ):
         if not (PLUGIN / relative).is_file():
             raise ValueError(f"Missing distributable file: {relative}")

@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PLUGIN = ROOT / "plugins" / "codex-cloud-environment-discovery"
+PLUGIN = ROOT / "plugins" / "cloudcodex-environment-discovery"
 sys.path.insert(0, str(PLUGIN / "runtime"))
 
 import server  # noqa: E402
@@ -91,19 +91,27 @@ class McpTests(unittest.TestCase):
         self.assertEqual(server.read_frame(output)["id"], 1)
         self.assertEqual(server.read_frame(output)["id"], 2)
 
+    def test_mcp_stdio_uses_newline_delimited_json(self):
+        stream = io.BytesIO()
+        server.write_frame(stream, {"jsonrpc": "2.0", "id": 1, "result": {}})
+        encoded = stream.getvalue()
+        self.assertTrue(encoded.startswith(b"{"))
+        self.assertTrue(encoded.endswith(b"\n"))
+        self.assertNotIn(b"Content-Length", encoded)
+
     def test_reject_oversize_frame(self):
         with self.assertRaises(ValueError):
-            server.read_frame(io.BytesIO(b"Content-Length: 999999999\r\n\r\n"))
+            server.read_frame(io.BytesIO(b"x" * (server.MAX_FRAME_BYTES + 2)))
 
     def test_reject_invalid_json(self):
         with self.assertRaises(json.JSONDecodeError):
-            server.read_frame(io.BytesIO(b"Content-Length: 4\r\n\r\nnope"))
+            server.read_frame(io.BytesIO(b"nope\n"))
 
 
 class PackageTests(unittest.TestCase):
     def test_portable_manifest(self):
         obj = json.loads((PLUGIN / "plugin.json").read_text(encoding="utf-8"))
-        self.assertEqual(obj["name"], "codex-cloud-environment-discovery")
+        self.assertEqual(obj["name"], "cloudcodex-environment-discovery")
         self.assertNotIn("mcpServers", obj)
         self.assertNotIn("skills", obj)
 
@@ -123,9 +131,9 @@ class PackageTests(unittest.TestCase):
 
     def test_skill_present(self):
         body = (
-            PLUGIN / "skills/codex-cloud-environment-discovery/SKILL.md"
+            PLUGIN / "skills/cloudcodex-environment-discovery/SKILL.md"
         ).read_text(encoding="utf-8")
-        self.assertIn("name: codex-cloud-environment-discovery", body)
+        self.assertIn("name: cloudcodex-environment-discovery", body)
         self.assertIn("Root", body)
 
     def test_short_description_limit(self):

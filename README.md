@@ -2,7 +2,7 @@
 
 Independent, **read-only** plugin for discovering existing Codex Cloud **Legacy** and **Current** environments **from the Root Orchestrator before any task exists**.
 
-**Status:** 0.1.0 prototype with tested contracts and runtime; live provider integration is not complete. The package never creates tasks or environments and never accesses stored authentication secrets.
+**Status:** 0.1.1 prototype with tested contracts and runtime; live provider integration is not complete. The package never creates tasks or environments and never accesses stored authentication secrets.
 
 ## Why a separate plugin?
 
@@ -31,9 +31,9 @@ In a future fully automated workflow, *optional provisioning* precedes **Discove
 ## Layout
 
 ```text
-plugins/codex-cloud-environment-discovery/
+plugins/cloudcodex-environment-discovery/
   plugin.json, .codex-plugin/plugin.json, mcp.json, .app.json
-  skills/codex-cloud-environment-discovery/{SKILL.md,agents/,references/}
+  skills/cloudcodex-environment-discovery/{SKILL.md,agents/,references/}
   runtime/{cli.py,server.py,discovery/}
 tests/
 tools/{validate.py,build_release.py}
@@ -48,22 +48,22 @@ Requires Python **3.9+**, no third-party runtime dependencies:
 ```sh
 python -X utf8 tools/validate.py
 python -X utf8 tools/build_release.py
-python plugins/codex-cloud-environment-discovery/runtime/cli.py list --pretty
+python plugins/cloudcodex-environment-discovery/runtime/cli.py list --pretty
 ```
 
 To inspect **explicitly supplied** offline catalog snapshots, not login state:
 
 ```sh
-python plugins/codex-cloud-environment-discovery/runtime/cli.py find --cloud-type legacy --repository owner/repo --snapshot-legacy path/to/catalog-example.json --pretty
+python plugins/cloudcodex-environment-discovery/runtime/cli.py find --cloud-type legacy --repository owner/repo --snapshot-legacy path/to/catalog-example.json --pretty
 ```
 
 The local MCP server can be started by a compatible host using the distributable package's `mcp.json`. It does not obtain authorization by itself.
 
 ## Installation and distribution
 
-Canonical source: `Tungsteno74/codex-cloud-environment-discovery`. The distributable package is under `./plugins/codex-cloud-environment-discovery`. The family marketplace is kept separate according to the existing GSM lifecycle: experimental plugins should be staged privately or as a proposed catalog change until intentionally approved for public distribution.
+Canonical source: `Tungsteno74/cloudcodex-environment-discovery`. The distributable package is under `./plugins/cloudcodex-environment-discovery`. The family marketplace is kept separate according to the existing GSM lifecycle: experimental plugins should be staged privately or as a proposed catalog change until intentionally approved for public distribution.
 
-The package supports a Git-backed marketplace entry using `source=git-subdir`, its canonical repository URL, `path=./plugins/codex-cloud-environment-discovery`, `ref=main`.
+The package supports a Git-backed marketplace entry using `source=git-subdir`, its canonical repository URL, `path=./plugins/cloudcodex-environment-discovery`, `ref=main`.
 
 ## License
 

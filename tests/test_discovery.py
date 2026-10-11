@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 ROOT = Path(__file__).resolve().parents[1]
-PLUGIN = ROOT / "plugins" / "codex-cloud-environment-discovery"
+PLUGIN = ROOT / "plugins" / "cloudcodex-environment-discovery"
 sys.path.insert(0, str(PLUGIN / "runtime"))
 
 from discovery.models import (  # noqa: E402

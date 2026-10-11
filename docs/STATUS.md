@@ -1,4 +1,4 @@
-# Implementation status — 0.1.0
+# Implementation status — 0.1.1
 
 | Component | Implemented? | Live E2E validated? |
 |---|---|---|

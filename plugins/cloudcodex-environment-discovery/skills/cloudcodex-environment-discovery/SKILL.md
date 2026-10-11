@@ -1,5 +1,5 @@
 ---
-name: codex-cloud-environment-discovery
+name: cloudcodex-environment-discovery
 description: Root-level read-only discovery and resolution of existing Codex Cloud Legacy and current environments before task creation. Use to find environment IDs, match repositories, assess drafts and catalog completeness, and avoid choosing an environment from an empty Codex Tasks inventory.
 ---
 

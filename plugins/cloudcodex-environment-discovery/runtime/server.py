@@ -12,33 +12,17 @@ from typing import Any, Dict, IO, Mapping, Optional
 from discovery.api import build_default_facade
 
 MAX_FRAME_BYTES = 1024 * 1024
-SERVER_NAME = "codex-cloud-environment-discovery"
-VERSION = "0.1.0"
+SERVER_NAME = "cloudcodex-environment-discovery"
+VERSION = "0.1.1"
 
 
 def read_frame(input_stream: IO[bytes]) -> Optional[Dict[str, Any]]:
-    length = None
-    headers = 0
-    while True:
-        line = input_stream.readline()
-        if not line:
-            return None
-        if line in {b"\r\n", b"\n"}:
-            break
-        headers += 1
-        if headers > 24:
-            raise ValueError("too many MCP headers")
-        if line.lower().startswith(b"content-length:"):
-            try:
-                length = int(line.split(b":", 1)[1].strip())
-            except ValueError as error:
-                raise ValueError("invalid MCP length") from error
-
-    if length is None or length <= 0 or length > MAX_FRAME_BYTES:
-        raise ValueError("missing or excessive MCP length")
-    raw = input_stream.read(length)
-    if len(raw) != length:
-        raise ValueError("truncated MCP frame")
+    """Read one newline-delimited MCP JSON-RPC message."""
+    raw = input_stream.readline(MAX_FRAME_BYTES + 2)
+    if not raw:
+        return None
+    if len(raw) > MAX_FRAME_BYTES + 1 or not raw.endswith(b"\n"):
+        raise ValueError("invalid or oversized MCP newline-delimited message")
     body = json.loads(raw.decode("utf-8"))
     if not isinstance(body, dict):
         raise ValueError("MCP request must be an object")
@@ -49,10 +33,9 @@ def write_frame(output_stream: IO[bytes], payload: Mapping[str, Any]) -> None:
     encoded = json.dumps(
         payload, ensure_ascii=False, separators=(",", ":")
     ).encode("utf-8")
-    output_stream.write(
-        b"Content-Length: " + str(len(encoded)).encode("ascii")
-        + b"\r\n\r\n" + encoded
-    )
+    if len(encoded) > MAX_FRAME_BYTES:
+        raise ValueError("MCP response exceeds maximum size")
+    output_stream.write(encoded + b"\n")
     output_stream.flush()
 
 

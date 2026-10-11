@@ -14,8 +14,8 @@
     "defaultPrompt": "Discover my available Codex Cloud environments before starting tasks, using verified authorized providers. Return IDs, source, configuration state and completeness; never mistake missing authorization for an empty catalog."
   },
   "apps": "./.app.json",
-  "name": "codex-cloud-environment-discovery",
-  "version": "0.1.0",
+  "name": "cloudcodex-environment-discovery",
+  "version": "0.1.1",
   "description": "Independent read-only Root discovery of Legacy and Current Codex Cloud environments with explicit evidence and fail-closed authorization handling.",
   "author": {
     "name": "Tungsteno74"
