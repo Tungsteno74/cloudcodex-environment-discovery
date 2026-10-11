@@ -34,8 +34,10 @@ There is **no Root dispatcher skill** and no shared all-types listing. The plugi
 | runtime/legacy/provider.py | Authorized Legacy selector/HTTP GET adapter | Generic common protocols/model |
 | runtime/current/provider.py | Authorized Current configuration catalog | Generic common protocols/model |
 | runtime/common | Generic descriptor, provenance, matching, service and snapshots | No Legacy/Current provider |
-| runtime/server.py | MCP JSON-lines protocol + namespaced tool table | Loads chosen provider lazily |
+| runtime/server.py (optional) | MCP JSON-lines protocol + namespaced tools | Only when explicitly enabled in a local host |
 | runtime/cli.py | Requires explicit domain and operation | Loads chosen domain lazily |
+
+The standard package intentionally has **no root `mcp.json`**. The Root skills can use authorized connected tools without starting a server; the read-only CLI can run through an authorized executor. The server and eight MCP tools are optional and may be enabled with the template under `optional/mcp.json` in an explicitly compatible local host. See [optional MCP integration](MCP_OPTIONAL.md). Neither access path automatically grants Codex Cloud catalog authorization.
 
 The model types do not hardcode the supported set of Cloud generations; the target domain is bound by each provider/service instance. No Current source file imports Legacy.
 
@@ -64,7 +66,7 @@ An EnvironmentDescriptor includes cloud_type, immutable ID, account/scope, expli
 
 When Legacy becomes obsolete:
 1. Delete legacy-discovery skill and runtime/legacy module.
-2. Remove Legacy-only tool registrations from the MCP server and Legacy CLI option.
+2. Remove Legacy-only CLI options and, **if the optional MCP adapter is used**, its Legacy tool registrations.
 3. Remove tests/test_legacy.py and Legacy release documentation.
 4. Keep runtime/current, tests/test_current.py and common model/service unchanged.
 

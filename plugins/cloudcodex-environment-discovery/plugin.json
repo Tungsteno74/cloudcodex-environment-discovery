@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "cloudcodex-environment-discovery",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Read-only provider-specific discovery of Codex Cloud Legacy and current environments, with two independent skills and no implicit mixed catalogs.",
   "author": {
     "name": "Tungsteno74"
@@ -11,14 +11,14 @@
       "interface": {
         "displayName": "CloudCodeX Environment Discovery",
         "shortDescription": "Read-only Cloud discovery",
-        "longDescription": "Independent read-only Legacy and Current Codex Cloud discovery. Two independently discoverable skills (legacy-discovery and current-discovery), separate provider adapters and explicit domain-specific tools. ChatGPT Root selects the requested generation directly, with no mandatory Root skill or mixed catalog. No task/environment creation, no credential extraction; live reads require authorized channels.",
+        "longDescription": "Independent read-only Legacy and Current Codex Cloud discovery. Two independently discoverable skills (legacy-discovery and current-discovery), separate provider adapters and explicit domain-specific tools when the optional local MCP adapter is configured. ChatGPT Root selects the requested generation directly, with no mandatory Root skill or mixed catalog. No task/environment creation, no credential extraction; live reads require authorized channels.",
         "developerName": "Tungsteno74",
         "category": "Developer Tools",
         "capabilities": [
           "Independent Legacy discovery",
           "Independent Current discovery",
           "Verified repository matching",
-          "Read-only provider-specific MCP tools"
+          "Optional local MCP tools"
         ],
         "defaultPrompt": "Determine the requested Codex Cloud type first. For Legacy invoke $legacy-discovery; for current-generation Cloud invoke $current-discovery. If both are explicitly requested, invoke the two skills separately and report separate provider statuses; do not produce an implicit mixed catalog. Read-only: no task or environment creation. On missing authorization, report unavailable instead of empty."
       },

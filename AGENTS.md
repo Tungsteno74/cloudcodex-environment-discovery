@@ -15,6 +15,7 @@ This repository is the independent lifecycle boundary for the read-only Codex Cl
 - Apply Clean Code, SOLID pragmatically, explicit interfaces, stable types and dependency injection for provider/transport adapters.
 - Python 3.9+ standard library preferred; PEP 8, type hints, small testable units, no network at import time.
 - Build portable Agent Plugins 1.0 `plugin.json` under `plugins/cloudcodex-environment-discovery/`; include two independently discoverable provider skills (`legacy-discovery` and `current-discovery`) without a mandatory Root dispatcher skill. Preserve the compatibility overlay.
+- Keep MCP optional: no root `plugins/cloudcodex-environment-discovery/mcp.json` in source or release ZIP. The opt-in template belongs under `optional/mcp.json`; neither skill nor CLI may require server startup.
 - Any MCP runtime/tool must run read-only, expose stable structured data and fail closed. Never print credentials or raw HTTP response bodies on error.
 - Include offline regression tests, repository validator, CI and package instructions. Clearly document limitations and missing authenticated Current/Legacy capabilities.
 - Do not silently turn absence of an interactive TTY/authorized connector into an empty catalog.

@@ -247,11 +247,17 @@ class PluginTests(unittest.TestCase):
         self.assertIn("$legacy-discovery", prompt)
         self.assertIn("$current-discovery", prompt)
 
-    def test_mcp_stdio_config_present(self):
-        config = json.loads((PLUGIN / "mcp.json").read_text(encoding="utf-8"))
+    def test_standard_package_does_not_register_mcp(self):
+        self.assertFalse((PLUGIN / "mcp.json").exists())
+
+    def test_optional_mcp_template_is_available(self):
+        config = json.loads(
+            (PLUGIN / "optional/mcp.json").read_text(encoding="utf-8")
+        )
         entry = next(iter(config["mcpServers"].values()))
         self.assertEqual(entry["type"], "stdio")
         self.assertIn("PLUGIN_ROOT", " ".join(entry["args"]))
+        self.assertTrue((RUNTIME / "server.py").is_file())
 
     def test_runtime_has_separate_provider_modules(self):
         self.assertTrue((RUNTIME / "legacy/provider.py").is_file())

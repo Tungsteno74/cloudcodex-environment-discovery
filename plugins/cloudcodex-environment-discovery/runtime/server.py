@@ -12,7 +12,7 @@ from typing import Any, Callable, Dict, IO, Mapping, Optional, Tuple
 
 MAX_FRAME_BYTES = 1024 * 1024
 SERVER_NAME = "cloudcodex-environment-discovery"
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 
 # Every externally callable method targets exactly one Cloud generation.
 # No generic "all" or cross-provider catalog operation is exposed.

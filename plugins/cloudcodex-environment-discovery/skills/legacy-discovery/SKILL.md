@@ -5,7 +5,7 @@ description: Discover and resolve existing Codex Cloud LEGACY environments befor
 
 # Codex Cloud Legacy environment discovery
 
-Scope: LEGACY only. This skill is directly discoverable by ChatGPT Root. It needs no coordinating Root skill, running Child, Cloud task or Windows Bootstrap.
+Scope: LEGACY only. This skill is directly discoverable by ChatGPT Root. **No custom MCP server is required**; use authorized native Root/CLI tools, and use the optional MCP adapter only after explicit activation. It needs no coordinating Root skill, running Child, Cloud task or Windows Bootstrap.
 
 ## Procedure
 

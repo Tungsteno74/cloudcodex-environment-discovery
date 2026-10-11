@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1 — Optional MCP adapter
+
+- Removed root `mcp.json` automatic registration from the standard plugin.
+- Preserved the tested local MCP server and eight tools behind `optional/mcp.json` for explicit opt-in.
+- Kept both skills and the read-only CLI independent from server startup.
+- Added regression checks and guidance for optional activation.
+
 ## 0.2.0 — Two independent discovery skills
 
 - Replaced one Root-only skill with **legacy-discovery** and **current-discovery**.

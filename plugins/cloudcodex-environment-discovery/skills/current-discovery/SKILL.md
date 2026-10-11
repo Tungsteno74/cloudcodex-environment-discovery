@@ -5,7 +5,7 @@ description: Discover and resolve CURRENT-GENERATION Codex Cloud environment con
 
 # Current-generation Codex Cloud discovery
 
-Scope: CURRENT only. Directly invocable by ChatGPT Root. Independent of Legacy, any running Child and Windows Bootstrap.
+Scope: CURRENT only. Directly invocable by ChatGPT Root. **No custom MCP server is required**; use already-authorized catalog access, and use the optional MCP adapter only after explicit activation. Independent of Legacy, any running Child and Windows Bootstrap.
 
 ## Procedure
 

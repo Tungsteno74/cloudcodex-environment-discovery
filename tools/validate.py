@@ -48,7 +48,7 @@ def validate_structure() -> None:
     for rel in (
         ".app.json",
         ".codex-plugin/plugin.json",
-        "mcp.json",
+        "optional/mcp.json",
         "runtime/server.py",
         "runtime/cli.py",
         "runtime/common/models.py",
@@ -72,6 +72,13 @@ def validate_structure() -> None:
         if (PLUGIN / obsolete).exists():
             raise ValueError(f"Obsolete mixed component remains: {obsolete}")
 
+    if (PLUGIN / "mcp.json").exists():
+        raise ValueError("Default installation must not auto-register MCP")
+    mcp_config = json.loads((PLUGIN / "optional/mcp.json").read_text(encoding="utf-8"))
+    mcp_entry = next(iter(mcp_config["mcpServers"].values()))
+    if (mcp_entry.get("type") != "stdio"
+            or "runtime/server.py" not in " ".join(mcp_entry.get("args", []))):
+        raise ValueError("Invalid optional MCP template")
     for path in PLUGIN.rglob("*"):
         if path.name.casefold() in {".env", "auth.json", "credentials.json"}:
             raise ValueError("Credential-like file must not be included")
