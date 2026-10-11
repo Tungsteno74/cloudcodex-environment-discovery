@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0 — Live Legacy list and concrete Current web adapter
+
+- Implemented the isolated screen-only native Legacy selector reader. Real IDs now return through CLI and optional MCP without reading private logs or credentials.
+- Added version-gated parsing, completed-frame rendering, bounded read-only traversal and owned-process cleanup; native dependencies remain optional.
+- Implemented full owned GitHub repository enumeration with native pagination and explicit optional correlation. Names remain candidates, not fabricated Cloud identities.
+- Distinguished Desktop and web Current catalog surfaces and added the concrete BrowserAct web GET adapter using an existing isolated browser. The actual read returned HTTP 403; no successful Current list or draft coverage is claimed.
+- Preserved the historical refusal of the different log/session reader, strict authorization stops, independent skills and optional MCP.
+- Added native/parser/browser/catalog correlation regressions and live evidence documentation. No provisioning or new Cloud tasks/environments.
+
 ## 0.3.1 — Concrete GitHub verification and onboarding hints
 
 - Added startup-opt-in native GitHub CLI repository verification with account continuity, fixed read-only routes and executable pinning.

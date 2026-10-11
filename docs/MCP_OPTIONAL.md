@@ -70,3 +70,7 @@ The backend catalogs in these tests are simulated host fixtures. This is a genui
 ## v0.3.1 compatibility
 
 The SDK pin, stdio profile and eight tool names are unchanged. Optional GitHub repository evidence and onboarding hints use the same configured services as CLI. Tools do not accept the GitHub executable, integrity hash, export path or consent flags; these remain operator startup settings. A new real SDK integration test confirms that an onboarding task with no Configuration ID stays non-resolvable.
+
+## v0.4.0 live native integration
+
+The SDK dependency and eight tool names are unchanged. List tools optionally accept correlate_github. The real list_legacy_environments call now returned two actual native IDs plus a 33-repository correlation through the configured screen-only adapter. Current's production browser route returned 403; this is not hidden by the server. Native dependencies are separately optional and MCP is still not a prerequisite for CLI/skills. See VALIDATION_0.4.0.md.

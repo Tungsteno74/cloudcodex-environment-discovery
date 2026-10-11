@@ -96,3 +96,7 @@ Original note: `Codex_Cloud_Environment_Discovery_Nota_Architetturale_plugin.md`
 The optional github startup section enables a reviewed, pinned native gh repository reader; it is not a Cloud catalog host. The same find/resolve functions carry repository_evidence separately from provider completeness. An enabled helper uses its own observed GitHub identity, never an inferred mapping from the ChatGPT account.
 
 Current onboarding can also use an approved path containing an explicit Codex Tasks connector export. This route does not require a custom host implementation, but evidence remains indirect; tasks without Configuration IDs are returned under provider.hints and are not environment records. Complete/denied-stage decisions are unchanged. See CONTINUATION_0.3.1.md for the schema and tested live observations.
+
+## v0.4.0 implemented adapters
+
+The former generic-host limitation is superseded for native Legacy and the Current browser web path. Native_cli reads only the visible native TUI in an isolated terminal; browser_web invokes a fixed same-origin GET in an already-prepared isolated Chrome browser. These are alternatives to primary hosts, not provisioning or credential-broker fallbacks. Native Legacy yielded actual rows; Current still returned 403. Their concrete settings, version/dependency gates and coverage semantics are in OPERATIONS_0.4.0.md.

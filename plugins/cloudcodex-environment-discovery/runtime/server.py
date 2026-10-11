@@ -3,6 +3,7 @@
 Core skills/CLI remain Python 3.9+ and require no MCP process. This adapter needs
 Python 3.10+ plus optional/requirements-mcp.txt. It is never auto-registered.
 """
+
 import argparse
 import json
 import logging
@@ -13,7 +14,7 @@ from common.configuration import DiscoveryRuntime, load_configuration
 from common.operation import Operation, OperationCancelled, OperationTimedOut, operation_scope
 
 SERVER_NAME = "cloudcodex-environment-discovery"
-VERSION = "0.3.1"
+VERSION = "0.4.0"
 MAX_RESULT_BYTES = 1024 * 1024
 TOOLS = {
     "list_legacy_environments": ("legacy", "list_environments"),
@@ -25,8 +26,19 @@ TOOLS = {
     "get_current_environment": ("current", "get_environment"),
     "resolve_current_environment": ("current", "resolve_environment"),
 }
-ERROR_STATUSES = {"unavailable", "unauthorized", "forbidden", "approval_required", "invalid_response",
-                  "invalid_request", "timeout", "cancelled", "not_verifiable", "response_too_large", "rate_limited"}
+ERROR_STATUSES = {
+    "unavailable",
+    "unauthorized",
+    "forbidden",
+    "approval_required",
+    "invalid_response",
+    "invalid_request",
+    "timeout",
+    "cancelled",
+    "not_verifiable",
+    "response_too_large",
+    "rate_limited",
+}
 
 
 def tool_specs() -> list:
@@ -35,6 +47,8 @@ def tool_specs() -> list:
     for name, (domain, operation) in TOOLS.items():
         properties = {"account": {"type": "string", "minLength": 1, "maxLength": 256}}
         required = []
+        if operation == "list_environments":
+            properties["correlate_github"] = {"type": "boolean", "default": False}
         if operation != "get_environment":
             properties["include_drafts"] = {"type": "boolean", "default": False}
         if operation in {"find_environments", "resolve_environment"}:
@@ -46,20 +60,40 @@ def tool_specs() -> list:
             required.append("environment_id")
         if operation == "resolve_environment":
             properties["name"] = {"type": "string", "minLength": 1, "maxLength": 4096}
-        specs.append({
-            "name": name,
-            "description": (operation.replace("_", " ").capitalize() + " for " + domain
-                            + " Codex Cloud only. Read-only; provenance and escalation trace included. "
-                            "Unavailable is not an empty verified catalog."),
-            "inputSchema": {"type": "object", "properties": properties,
-                            "required": required, "additionalProperties": False},
-            "outputSchema": {"type": "object", "required": ["cloud_type", "status", "catalog_complete"],
-                             "properties": {"cloud_type": {"const": domain}, "status": {"type": "string"},
-                                            "catalog_complete": {"type": "boolean"}},
-                             "additionalProperties": True},
-            "annotations": {"readOnlyHint": True, "destructiveHint": False,
-                            "idempotentHint": True, "openWorldHint": True},
-        })
+        specs.append(
+            {
+                "name": name,
+                "description": (
+                    operation.replace("_", " ").capitalize()
+                    + " for "
+                    + domain
+                    + " Codex Cloud only. Read-only; provenance and escalation trace included. "
+                    "Unavailable is not an empty verified catalog."
+                ),
+                "inputSchema": {
+                    "type": "object",
+                    "properties": properties,
+                    "required": required,
+                    "additionalProperties": False,
+                },
+                "outputSchema": {
+                    "type": "object",
+                    "required": ["cloud_type", "status", "catalog_complete"],
+                    "properties": {
+                        "cloud_type": {"const": domain},
+                        "status": {"type": "string"},
+                        "catalog_complete": {"type": "boolean"},
+                    },
+                    "additionalProperties": True,
+                },
+                "annotations": {
+                    "readOnlyHint": True,
+                    "destructiveHint": False,
+                    "idempotentHint": True,
+                    "openWorldHint": True,
+                },
+            }
+        )
     return specs
 
 
@@ -71,8 +105,11 @@ def build_server(runtime: Optional[DiscoveryRuntime] = None):
     from mcp.types import CallToolResult, TextContent, Tool
 
     runtime = runtime or DiscoveryRuntime()
-    server = Server(SERVER_NAME, version=VERSION,
-                    instructions="Read-only independent Legacy/Current discovery; no task creation or credential extraction.")
+    server = Server(
+        SERVER_NAME,
+        version=VERSION,
+        instructions="Read-only independent Legacy/Current discovery; no task creation or credential extraction.",
+    )
     definitions = {spec["name"]: Tool(**spec) for spec in tool_specs()}
     inputs = {name: Draft202012Validator(tool.inputSchema) for name, tool in definitions.items()}
     outputs = {name: Draft202012Validator(tool.outputSchema) for name, tool in definitions.items()}
@@ -82,19 +119,31 @@ def build_server(runtime: Optional[DiscoveryRuntime] = None):
         return list(definitions.values())
 
     def result_for(data: dict, is_error: bool = False):
-        return CallToolResult(content=[TextContent(type="text", text=json.dumps(data, ensure_ascii=False))],
-                              structuredContent=data, isError=is_error)
+        return CallToolResult(
+            content=[TextContent(type="text", text=json.dumps(data, ensure_ascii=False))],
+            structuredContent=data,
+            isError=is_error,
+        )
 
     # Use the SDK's JSON Schema dependency, but deliberately suppress raw input
     # values in its default validation errors: tool arguments can be sensitive.
     @server.call_tool(validate_input=False)
     async def call_tool(name: str, arguments: dict):
         if name not in TOOLS:
-            return CallToolResult(content=[TextContent(type="text", text="Unknown discovery tool")], isError=True)
+            return CallToolResult(
+                content=[TextContent(type="text", text="Unknown discovery tool")], isError=True
+            )
         domain, operation_name = TOOLS[name]
         if not inputs[name].is_valid(arguments):
-            return result_for({"cloud_type": domain, "status": "invalid_request", "catalog_complete": False,
-                               "warnings": ["Arguments do not match the read-only tool schema"]}, True)
+            return result_for(
+                {
+                    "cloud_type": domain,
+                    "status": "invalid_request",
+                    "catalog_complete": False,
+                    "warnings": ["Arguments do not match the read-only tool schema"],
+                },
+                True,
+            )
         context = server.request_context
         progress_token = context.meta.progressToken if context.meta is not None else None
         count = 0
@@ -103,7 +152,9 @@ def build_server(runtime: Optional[DiscoveryRuntime] = None):
             nonlocal count
             count += 1
             if progress_token is not None:
-                await context.session.send_progress_notification(progress_token, float(count), None, stage)
+                await context.session.send_progress_notification(
+                    progress_token, float(count), None, stage
+                )
 
         def report(stage: str):
             anyio.from_thread.run(progress, stage)
@@ -122,8 +173,12 @@ def build_server(runtime: Optional[DiscoveryRuntime] = None):
         except OperationCancelled:
             data = {"cloud_type": domain, "status": "cancelled", "catalog_complete": False}
         except (ValueError, OSError, TypeError, RuntimeError):
-            data = {"cloud_type": domain, "status": "invalid_response", "catalog_complete": False,
-                    "warnings": ["Read-only adapter failed; raw host output was suppressed"]}
+            data = {
+                "cloud_type": domain,
+                "status": "invalid_response",
+                "catalog_complete": False,
+                "warnings": ["Read-only adapter failed; raw host output was suppressed"],
+            }
         except BaseException:
             operation.cancelled.set()
             raise  # SDK cancellation, not an authorization/retry signal.
@@ -132,16 +187,23 @@ def build_server(runtime: Optional[DiscoveryRuntime] = None):
         if not outputs[name].is_valid(data):
             data = {"cloud_type": domain, "status": "invalid_response", "catalog_complete": False}
         if len(json.dumps(data, ensure_ascii=False).encode("utf-8")) > MAX_RESULT_BYTES:
-            data = {"cloud_type": domain, "status": "response_too_large", "catalog_complete": False,
-                    "warnings": ["Use an explicit narrower provider scope or CLI for this catalog"]}
+            data = {
+                "cloud_type": domain,
+                "status": "response_too_large",
+                "catalog_complete": False,
+                "warnings": ["Use an explicit narrower provider scope or CLI for this catalog"],
+            }
         provider_status = data.get("provider", {}).get("status")
-        return result_for(data, data.get("status") in ERROR_STATUSES or provider_status in ERROR_STATUSES)
+        return result_for(
+            data, data.get("status") in ERROR_STATUSES or provider_status in ERROR_STATUSES
+        )
 
     return server
 
 
 async def run_stdio(runtime: DiscoveryRuntime) -> None:
     from mcp.server.stdio import stdio_server
+
     server = build_server(runtime)
     async with stdio_server() as (read_stream, write_stream):
         await server.run(read_stream, write_stream, server.create_initialization_options())
@@ -153,6 +215,7 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     try:
         import anyio
+
         runtime = DiscoveryRuntime(load_configuration(args.config))
         logging.basicConfig(level=logging.ERROR)
         # SDK parser diagnostics may include invalid client input; keep them
@@ -163,10 +226,14 @@ def main(argv=None) -> int:
         anyio.run(run_stdio, runtime)
     except ImportError:
         import sys
-        print("Optional MCP requires Python 3.10+ and optional/requirements-mcp.txt", file=sys.stderr)
+
+        print(
+            "Optional MCP requires Python 3.10+ and optional/requirements-mcp.txt", file=sys.stderr
+        )
         return 2
     except (ValueError, OSError, TypeError):
         import sys
+
         print("Invalid operator discovery configuration; no server started", file=sys.stderr)
         return 2
     except KeyboardInterrupt:

@@ -1,13 +1,13 @@
-# CloudCodeX Environment Discovery 0.3.1 (preview)
+# CloudCodeX Environment Discovery 0.4.0 (preview)
 
-Two independent read-only skills: legacy-discovery and current-discovery. No Root dispatcher or mandatory MCP server.
+Two independent read-only skills: legacy-discovery and current-discovery. No mandatory Root dispatcher, MCP server or provisioning operation.
 
-Core CLI: Python 3.9+, runtime/cli.py. Supply operator configuration via --config or CLOUDCODEX_DISCOVERY_CONFIG. The safe optional/discovery.example.json contains no connected sources; it intentionally returns unavailable, not a verified empty catalog.
+Legacy now has a concrete isolated native CLI screen reader: two real IDs were returned repeatedly and through MCP on the reference Windows machine. Only CLI 0.162.0 is validated; optional native dependencies are in optional/requirements-native.txt. No private logs, credentials or primary-desktop input are accessed.
 
-Optional MCP: Python 3.10+ and optional/requirements-mcp.txt. Start runtime/server.py from a compatible stdio MCP client only after explicit opt-in; optional/mcp.json is a template, not automatic root registration.
+Current has a concrete same-origin browser-web GET adapter, but the actual catalog request returned HTTP 403. It stops; it does not solve challenges or claim an empty catalog. Desktop and web API surfaces are distinct.
 
-The SDK server and executable host adapter contracts are tested. A working authenticated OpenAI catalog host is NOT bundled. Native-session automation was blocked during implementation, so this preview must not be claimed to have completed live Legacy/Current discovery. No task creation, credential extraction or provisioning is included.
+CLI: runtime/cli.py legacy list --config <operator-config> --correlate-github. The optional owned GitHub catalog is joined by IDs/associations first, names as hints. Cloud completeness is separate from visible UI coverage and GitHub completeness.
 
-Full documentation and source: https://github.com/Tungsteno74/cloudcodex-environment-discovery
+Core Python3.9+, native profile tested on Python3.12, optional MCP Python3.10+ with optional/requirements-mcp.txt. No root mcp.json is shipped. The empty example configuration does not contain credentials or automatically connect personal accounts.
 
-Optional native GitHub repository verification and explicit Codex Tasks onboarding evidence are supported. Neither establishes a complete live OpenAI Cloud catalog; absent Configuration IDs remain hints.
+Source and operation guide: https://github.com/Tungsteno74/cloudcodex-environment-discovery/tree/v0.4.0

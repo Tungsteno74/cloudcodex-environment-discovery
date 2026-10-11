@@ -1,41 +1,42 @@
-# Legacy execution contract
+# Legacy discovery execution contract — v0.4.0
 
-## Scope and research
+Only existing Legacy environments are read. No Current lookup, task creation, environment publishing or provisioning belongs to this skill.
 
-Only existing Legacy Codex Cloud environments are in scope. The 10 October research verified discovery of a zero-task environment through the native client. The source inspected at OpenAI Codex commit `4aa94dce270de668eff6e2fa8585c82385e84455` uses the global `/backend-api/wham/environments` GET and the GitHub by-repository route. Those are internal client contracts, not guaranteed public APIs.
+## Native first stage
 
-The integrated native-session adapter attempted in v0.3.0 was blocked by a tool security control; no such reader is shipped. The executable primary adapter therefore requires a separately approved host implementing the catalog protocol. **Do not route around a host/tool refusal.**
+`kind: native_cli`, explicit `approved: true`, and `native` settings:
 
-## Startup configuration and execution
+- `executable`: absolute reviewed native codex/codex.exe path, not a .cmd launcher.
+- `sha256`: verified executable digest.
+- `max_pages`: traversal bound, default50, range1–100.
 
-CLI form: `python <plugin-root>/runtime/cli.py legacy <doctor|list|find|get|resolve> --config <absolute-config-path>`.
+The tested screen contract is Codex CLI 0.162.0. Native terminal dependencies are in `optional/requirements-native.txt`; live Windows checks used Python3.12. Core parsing/tests require no MCP.
 
-Configuration schema version 1 contains `mode` (AUTO or CONFIRM), a bounded operation `timeout`, and `domains.legacy.stages`. Legacy stages are ordered `primary`, `http`, `snapshot`, each explicitly `approved: true` before execution. Source configuration and commands are never accepted as MCP tool parameters.
+The reader invokes ordinary `codex cloud` in an isolated non-repository working directory. It renders completed terminal frames, opens the environment selector using `o`, and enumerates rows with End/Home/PageDown. It never sends Enter/New Task/Apply. Only the rendered selector is parsed; files/logs/authentication stores/process memory are not read. It closes its own PTY and removes native-created temporary files unread.
 
-A live host stage contains `command.argv` (absolute executable/script plus fixed arguments), `command.sha256` (integrity pins for those files), `command.cwd`, and a bounded request timeout. No shell, inline code or credential arguments are supported. A snapshot stage instead contains an absolute catalog `path`. File hashes verify identity, not host safety or permission.
+This accepted screen-only implementation is **different from the previously refused log/session reader**. Preserve that historical refusal; do not revive the old mechanism.
 
-## Host protocols
+## Result semantics
 
-Primary request: schema_version=1, operation=catalog_read, cloud_type=legacy, account, include_drafts, scopes=[user]. The host returns matching schema/domain, status, catalog records, fresh observed_at, account provenance, echoed scopes/draft flags and truthful completeness. A raw interactive Codex invocation does not implement this JSON protocol.
+Each parsed row contains a real native ID, label and, only when explicitly displayed as a separate native hint, repository association. A label that happens to equal owner/repo does not establish an association.
 
-HTTP request: operation=http_get, method=GET, cloud_type=legacy, an allowlisted URL and query. The relay returns integer status, actual content_type, observed_at, observed account metadata and JSON body only for HTTP 200. Native authentication stays inside the approved host; this package never extracts it.
+The native result is `partial` with `catalog_complete=false`; `provider.coverage.visible_rows_complete` independently records full visible traversal. The UI supplies neither account-identity proof nor a guarantee of API-wide completeness/draft status. Empty/filtered/truncated or changed layouts must not become a verified empty account catalog.
 
-Allowed routes:
-- Global catalog: `https://chatgpt.com/backend-api/wham/environments`.
-- Explicit repository association: `.../environments/by-repo/github/{owner}/{repo}`.
+## Authorized API host alternatives
 
-Only a validated by-repository response can supply an otherwise missing association; a matching display label cannot. Numeric repository IDs are matched explicitly against catalog data rather than guessed from names.
+`primary` is an alternative first-stage host, not an obligatory prerequisite for native CLI. A configured `http` host may follow a partial native result only when already authorized and not blocked by a terminal denial.
 
-## Escalation and result
+Allowed Legacy GETs:
 
-Complete live success—including an empty catalog—stops. Missing/partial sources may proceed only to the next pre-approved stage. AUTO cannot approve a stage. CONFIRM returns approval_required if consent is missing. A 401/403, rate limit, integrity/account mismatch, policy denial, cancellation or timeout ends the sequence.
+- `/backend-api/wham/environments`.
+- `/backend-api/wham/environments/by-repo/github/{owner}/{repo}`.
 
-Each result includes status, catalog_complete, source/evidence, observed_at and ordered attempts with timings/reasons. Snapshots remain imported candidates. Resolve requires one fresh, live verified identity and complete relevant coverage. Version/draft ambiguity is preserved; cached IDs are not current truth.
+By-repository responses can prove association; names alone cannot. The plugin does not acquire tokens. Operator host commands and scripts are fixed/hash-pinned at startup; arbitrary commands and URLs are not tool inputs.
 
-Optional MCP equivalents: list_legacy_environments, find_legacy_environments, get_legacy_environment, resolve_legacy_environment. MCP is not an authentication mechanism or a prerequisite. No Current lookup, task creation, provisioning, browser control or GitHub writes are part of this skill.
+## GitHub correlation and optional MCP
 
-## Optional GitHub identity verification (v0.3.1)
+`list --correlate-github` enumerates all owned GitHub repositories through native gh pagination and joins them to actual environment rows. ID/explicit association yields a verified join; names yield hints. GitHub success never manufactures missing Environment IDs or changes Cloud completeness.
 
-When already enabled in startup configuration, the native GitHub adapter verifies repository identity through the existing gh account. It uses only fixed GET operations and does not read credentials. Configuration uses github.enabled, an absolute gh executable path and SHA-256 pin, and an optional expected GitHub account (not the ChatGPT account). The default is disabled. Root can alternatively use its existing authorized GitHub connector.
+MCP list/find/get/resolve names remain `list_legacy_environments`, `find_legacy_environments`, `get_legacy_environment`, `resolve_legacy_environment`. The list operation optionally accepts `correlate_github`. MCP is not required to run the CLI or skill.
 
-find/resolve prefer the verified numeric repository ID, then canonical owner/repo; a matching name cannot override an ID conflict. GitHub success is repository evidence only and must not be described as an existing Cloud environment. A configured GitHub verification failure stops the dependent lookup rather than broadening access.
+Stop escalation on 401/403, rate limiting, identity/integrity conflicts, unapproved CONFIRM stages, cancellation and deadlines. No account switching, challenge bypass or provisioning fallback. Return candidates when coverage/identity is insufficient for automatic selection.

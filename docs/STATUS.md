@@ -1,34 +1,21 @@
-# Implementation status — v0.3.0 preview
+# Implementation status — v0.4.0 preview
 
-## Requested work and actual result
-
-| Area | Implemented | Verification / limitation |
+| Capability | Implemented | Actual validation |
 |---|---|---|
-| Independent Legacy and Current skills | Yes | Direct entry points; no mandatory Root skill or MCP |
-| Executable configured adapters | Yes | Real host processes tested with simulated catalog data |
-| Ordered escalation | Yes | Pre-approved primary / HTTP / auxiliary stages, trace and terminal denials |
-| Legacy global and by-repository catalogs | Yes, through an approved GET host | No real authorized OpenAI host connected |
-| Current scopes, pagination, versions and drafts | Yes, through an approved GET host | No real authorized OpenAI host connected |
-| Native-session adapter | **Not shipped** | The implementation attempt was blocked by a tool safety control |
-| Auxiliary Current onboarding and imported snapshots | Yes | Indirect/imported candidate evidence only |
-| Optional MCP stdio server | Yes, official SDK | Real SDK client/server integration, strict schemas, progress, timeout and cancellation |
-| Live OpenAI catalog acceptance | **Not completed** | Simulated tests do not establish real account authorization |
-| Installation in ChatGPT Chat | Not performed | GitHub changes do not attach local MCP tools or install skills automatically |
+| Independent Legacy/Current skills | Yes | No mandatory Root dispatcher |
+| Legacy native screen-only reader | Yes | Two actual existing IDs, repeatable through CLI and optional MCP |
+| Legacy account-wide completeness/publication state | Not attested by UI | Returned as unknown/incomplete, not guessed |
+| Full owned GitHub inventory and correlation | Yes | 33 repositories read; name match preserved as a hint |
+| Current BrowserAct web GET adapter | Yes | Actual 403 HTML; terminal failure, session closed |
+| Current Desktop approved GET host | Yes | No connected direct host validated |
+| Current successful catalog and unpublished drafts | Not verified live | Still blocked; no bypass or creation attempted |
+| Optional MCP SDK server | Yes | Existing eight tools; optional list correlation argument |
+| Provisioning/Credential Broker | Excluded | No implementation or live writes in discovery |
 
-The first requested task is therefore **partially complete**: executable adapters, skill workflows and escalation are implemented, but the actual native/Current live connections remain missing. The optional MCP server can be implemented and protocol-tested independently of those missing catalog hosts.
+The major change from v0.3.1 is that Legacy is no longer a callback-only integration: it actually returns a live observed list on the reference machine. Current still does not return a usable live list, despite having a concrete tested browser transport. Neither result changes authorization automatically.
 
-Core Python requirement: 3.9+. Optional MCP: Python 3.10+ with the declared SDK dependency, tested on Python 3.12. The canonical package has no root mcp.json, so MCP does not start implicitly.
+The screen reader uses ordinary TUI input/output and never reads the private logs/session stores targeted by the older refused attempt. That historic refusal is preserved in Project Memory, not rerouted.
 
-## Delivery boundary
+Code and machine-local read configuration are ready for the existing source branch. The local config is outside the repository; default distributed settings are disabled. MCP remains optional and skills are not automatically installed into ChatGPT Chat by a GitHub release.
 
-Work is kept on a dedicated implementation branch and reviewed separately from the stable v0.2.1 baseline. The GSM marketplace PR remains draft. No environment provisioning, Cloud task creation, token extraction or changes to the Bootstrap 0.6.6 three-gate workflow are part of this implementation.
-
-## Evidence
-
-Run `python -X utf8 tools/validate.py` for the dependency-free core and `python -X utf8 tools/validate.py --with-mcp` for the actual optional SDK profile. A missing SDK or skipped SDK tests cannot be reported as a complete MCP verification. Consult the validation report and CI for exact counts and revisions.
-
-See ADAPTERS.md, MCP_OPTIONAL.md and PROJECT_MEMORY.md for resumable contracts and blockers.
-
-## v0.3.1 continuation
-
-Added a concrete optional native GitHub repository adapter and Current onboarding evidence reader. The live GitHub lookup succeeded; the connected Codex Tasks read yielded two relevant onboarding hints but no structured Configuration ID. Neither result constitutes a complete Cloud catalog. Core: 170 tests passed on Python 3.9; core plus optional SDK: 183 tests passed on Python 3.12, with zero skips. See CONTINUATION_0.3.1.md for scope and reproducibility.
+See OPERATIONS_0.4.0.md and VALIDATION_0.4.0.md for exact commands, evidence, cleanup and limits. Stable main and the marketplace PR remain separate from this preview until promotion is explicitly appropriate.

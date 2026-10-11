@@ -1,75 +1,66 @@
 # CloudCodeX Environment Discovery
 
-Read-only discovery of existing Codex Cloud environments **before any Cloud task exists**. The plugin stays independent of CloudCodeX Windows Bootstrap and of environment provisioning.
+Read-only recovery of **existing** Codex Cloud environments. Two independent skills, `legacy-discovery` and `current-discovery`, are directly available to the Root when installed. No mandatory Root dispatcher, mixed catalog, provisioning, task creation or environment publication is included.
 
-## Two independent skills
+## v0.4.0 — actual operational result
 
-- **legacy-discovery**: Legacy catalog and repository associations.
-- **current-discovery**: current-generation configurations, user/workspace scopes, drafts and versions.
+| Path | Implementation | Observed result on the reference machine |
+|---|---|---|
+| Legacy native CLI selector | Complete screen-only adapter, isolated terminal | **Two real environment IDs returned repeatedly**, also through CLI and optional MCP |
+| Owned GitHub repository catalog | Native `gh api` pagination and account continuity | **33 repositories enumerated**, correlated to the observed Legacy rows |
+| Current web catalog | Built-in BrowserAct read-only GET adapter | **HTTP 403**, reported as `forbidden`; no challenge bypass or second-scope retry |
+| Current Desktop catalog | Approved HTTP host adapter, separately configured endpoint | No connected authorized direct host validated in this release |
+| Current onboarding | Existing connector exports or approved host | Indirect hints only, not a substitute for configuration IDs |
+| Optional MCP | Official SDK, eight tools, cancellation/progress/schema validation | Actual live Legacy catalog call succeeded; no automatic MCP registration |
 
-The Root chooses a generation directly. There is no mandatory Root dispatcher, implicit mixed catalog, or required MCP server.
+**Current discovery is not claimed to return a live environment list yet.** Its executable browser adapter now reaches the catalog route and returns the actual authorization blocker instead of requiring an unspecified host implementation. An authentication/Cloudflare denial cannot be fixed by declaring a test fixture successful.
 
-## v0.3.1 preview — catalog access still requires a permitted host
+## Native Legacy, without credentials or private logs
 
-| Component | This release |
-|---|---|
-| Skills and escalation procedures | Independent per generation; explicit stop/consent rules |
-| Executable adapter configuration | Operator-approved, integrity-pinned command hosts; no Python callback injection needed |
-| Legacy HTTP catalog / by-repository adapter | Implemented over an approved GET host; no label-to-repository guessing |
-| Current catalog adapter | Implemented scoped pagination, drafts, versions and account continuity |
-| Primary native/official source | Host-command contract implemented; **a working authenticated host is not bundled** |
-| Current onboarding hints | Approved host or explicit Codex Tasks export; missing Configuration IDs remain hints |
-| Optional GitHub identity adapter | Concrete native gh GET reader; repository lookup verified live, not Cloud authorization |
-| Snapshot fallback | Explicit imported evidence, never a live catalog |
-| Optional MCP | Official MCP Python SDK, eight read-only tools; real stdio client/server tests |
-| Native-session automation | **Not shipped**: its attempted implementation was blocked by tool safety controls |
-| Live OpenAI catalog acceptance | **Not completed in this release**; no new Cloud resources were created |
+`runtime/legacy/native_cli.py` starts the ordinary authenticated Codex CLI in a separate pseudoterminal. It reads only the rendered **Select Environment** screen using `o`, End/Home/PageDown; it never sends New Task, Enter or Apply. It does not read client logs, auth.json, browser profiles or process memory.
 
-This is not a claim that the missing authorized catalog host now exists. The command adapters are working integration boundaries, not a credential broker and not a substitute for authorization.
+The tested client is **codex-cli 0.162.0 on Windows**. Unknown versions fail closed. The native interpreter profile needs `optional/requirements-native.txt`; Python 3.12 was used for the live tests. Core parsers and non-native CLI usage remain Python 3.9+.
 
-## Use without MCP
+The selector exposes real IDs but not an account ID or proof of server-wide completeness. Results therefore distinguish:
 
-Python **3.9+** is sufficient for the core and CLI. No third-party core dependencies are needed.
-
-```sh
-python plugins/cloudcodex-environment-discovery/runtime/cli.py legacy doctor
-python plugins/cloudcodex-environment-discovery/runtime/cli.py current list --config /absolute/operator/discovery.json --pretty
-python plugins/cloudcodex-environment-discovery/runtime/cli.py legacy find --repository owner/repo --config /absolute/operator/discovery.json
-python plugins/cloudcodex-environment-discovery/runtime/cli.py current resolve --repository owner/repo --include-drafts --config /absolute/operator/discovery.json
+```json
+{"status":"partial","catalog_complete":false,"provider":{"coverage":{"surface":"native_tui","visible_rows_complete":true,"account_catalog_complete":false}}}
 ```
 
-`doctor` reports configuration only: it does not start hosts or claim live access. Without configured sources, reads return `unavailable` and `catalog_complete=false`, never a verified empty catalog.
+`partial` here **does not mean an empty or simulated list**. It means the visible native list was read, while undisclosed account/scope/draft guarantees were not fabricated. `resolve` remains conservative.
 
-Configuration is selected at process startup by `--config` or `CLOUDCODEX_DISCOVERY_CONFIG`. It cannot be supplied through an MCP tool call. Use the empty, safe `optional/discovery.example.json` as a starting point and read [ADAPTERS.md](docs/ADAPTERS.md) before enabling a host.
+## Execute through the CLI
 
-## New in v0.3.1
+```sh
+python plugins/cloudcodex-environment-discovery/runtime/cli.py legacy list --config /absolute/discovery.json --pretty
+python plugins/cloudcodex-environment-discovery/runtime/cli.py legacy list --config /absolute/discovery.json --correlate-github --pretty
+python plugins/cloudcodex-environment-discovery/runtime/cli.py current list --config /absolute/discovery.json --pretty
+```
 
-The optional GitHub adapter verifies a requested repository ID and canonical owner/repo through the installed `gh` CLI, using its existing authorized account. It is startup opt-in and cannot prove Cloud environment existence. Current onboarding can consume explicit `Codex Tasks.list_tasks/read_task` exports through an approved path stage: task IDs/titles remain `provider.hints` unless a separate configuration ID is explicitly present. Prose, alleged publication status and display-name similarity are not parsed as authority. See [continuation notes](docs/CONTINUATION_0.3.1.md).
+Configuration is operator-owned and selected at startup. It contains paths, integrity pins and approved read stages, **not credentials**. `doctor` reports setup, not proof of access. The distributed example has no enabled account-specific adapters.
 
-## Escalation
+The reference machine now has a non-secret local configuration under `%LOCALAPPDATA%\CloudCodeX\environment-discovery\discovery-readonly.local.json`. This file is **not** part of the public package. See [operation/setup details](docs/OPERATIONS_0.4.0.md).
 
-Legacy: primary native catalog host → explicitly approved HTTP catalog host → imported snapshot.
+## Current web and Desktop are distinct surfaces
 
-Current: primary official catalog host → explicitly approved HTTP catalog host → onboarding hints → imported snapshot.
+- Desktop: `https://codex-cloud-backend.chatgpt.com/v1/environment-configs`.
+- Web same-origin proxy: `https://chatgpt.com/api/codex-cloud/v1/environment-configs`.
 
-Only configured and approved stages run. `AUTO` does not grant consent; `CONFIRM` returns `approval_required` for an unapproved stage. An authoritative empty catalog terminates successfully. **401, 403, rate limiting, identity mismatch, cancellation and deadline expiry stop the sequence**, rather than retrying through a different identity.
+The earlier blanket statement that the web-prefixed route was wrong conflated two client surfaces. This release keeps them separate and explicitly configured; a denial on one is not a reason to switch automatically to the other. `browser_web` always uses the web surface and an existing isolated Chrome browser. It does not create/import profiles, extract cookies, alter proxies or solve challenges.
 
-Every read returns a stage trace, timing, status and completeness. Partial and indirect records remain candidates. A unique resolution requires live, fresh, verified evidence and complete requested coverage. Different drafts/versions are not silently discarded as duplicate IDs.
+Draft inclusion, scopes and pagination remain explicit. `omitDraft=false` is implemented, but successful live retrieval of unpublished Current drafts is **not verified**.
+
+## GitHub correlation, not fabrication
+
+`--correlate-github` on `list` obtains the complete owned-repository inventory through native `gh --paginate --slurp`, then joins it with observed environment rows. Explicit repository IDs/associations outrank names; equal names are `name_candidate` hints. A repository without an observed Cloud row never becomes an invented environment. Cloud and GitHub completeness are independent.
 
 ## Optional MCP
 
-Python **3.10+** is required for the optional SDK profile; Python 3.12 is tested. Installation is explicit:
+MCP is an optional adapter, not a prerequisite. Install the declared SDK profile on Python 3.10+ and configure `runtime/server.py --config ...` in a compatible stdio host. The standard package intentionally has **no root `mcp.json`**.
 
-```sh
-python -m pip install -r plugins/cloudcodex-environment-discovery/optional/requirements-mcp.txt
-python plugins/cloudcodex-environment-discovery/runtime/server.py --config /absolute/operator/discovery.json
-```
+The eight existing list/find/get/resolve tools retain their names. The two list tools additionally accept `correlate_github: true`. No tool accepts a token, executable, arbitrary URL, profile path or approval escalation. See [MCP_OPTIONAL.md](docs/MCP_OPTIONAL.md).
 
-The process speaks **stdio only** and should normally be started by an MCP client. It exports list/find/get/resolve for each generation, eight tools in total. The official SDK handles lifecycle, version negotiation, framing and cancellation; the application adds strict sanitized schemas, read-only annotations, progress and bounded results. See [MCP_OPTIONAL.md](docs/MCP_OPTIONAL.md).
-
-There is **no root `mcp.json`**. GitHub publishing does not install the skills into ChatGPT Chat or attach a local MCP process to it.
-
-## Validation
+## Validation and release
 
 ```sh
 python -X utf8 tools/validate.py
@@ -77,10 +68,6 @@ python -X utf8 tools/validate.py --with-mcp
 python -X utf8 tools/build_release.py
 ```
 
-The core profile keeps the provider suites independent. The MCP profile requires the SDK and fails if SDK tests cannot run; skipped tests are not reported as verified. Host fixtures simulate catalogs, but execute as real child processes. SDK tests use a real server process and SDK client. **Neither test category is proof of live OpenAI authorization.**
+Core tests are offline; optional SDK tests run real stdio client/server processes with fixtures. Separately recorded live reads validate the native Legacy and GitHub paths and the Current 403 response. See [VALIDATION_0.4.0.md](docs/VALIDATION_0.4.0.md), [PROJECT_MEMORY.md](docs/PROJECT_MEMORY.md) and [CHANGELOG.md](CHANGELOG.md).
 
-## Distribution and continuity
-
-Canonical repository: `Tungsteno74/cloudcodex-environment-discovery`. The standalone package is under `plugins/cloudcodex-environment-discovery`; the GSM family marketplace remains catalog-only and its integration PR is still draft. The original provisioning experiment and the Bootstrap 0.6.6 three-gate pipeline are not changed.
-
-Read [PROJECT_MEMORY.md](docs/PROJECT_MEMORY.md), [ADAPTERS.md](docs/ADAPTERS.md), [MCP_OPTIONAL.md](docs/MCP_OPTIONAL.md) and the [changelog](CHANGELOG.md). Licensed under MIT.
+Canonical source: `Tungsteno74/cloudcodex-environment-discovery`. The separate GSM marketplace PR remains draft; publication of a GitHub preview does not install this plugin into ChatGPT Chat. CloudCodeX Windows Bootstrap 0.6.6 and its three gates are unchanged. MIT license.

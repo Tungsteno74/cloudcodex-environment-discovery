@@ -53,3 +53,21 @@ Read AGENTS.md and the actual Git status first. Reuse the current repository and
 - Added a separate provider.hints channel for explicit onboarding connector exports. The live metadata test returned two hints and zero environments; its temporary export was deleted. The Python parser does not itself establish a connector connection.
 - Added regression coverage for ID conflicts, changed accounts, hint retention, denied-stage stops and SDK transport of non-resolvable hints. Local core profile: 170 passed; core+SDK: 183 passed, zero skipped.
 - Still unresolved: permitted complete Legacy/Current catalog hosts and actual installation into ChatGPT Chat. This continuation does not supersede the prior native-session refusal or promote fixture success to live acceptance.
+
+## Observed v0.4.0 — live Legacy enumeration
+
+- User reaffirmed that all provisioning/create/publish work belongs to a separate plugin. No such operation was added to discovery.
+- The standard RDC stdin channel opened Codex CLI but did not open its selector. This was terminal-input behavior, not an authentication denial; only the owned diagnostic process tree was closed.
+- A DIFFERENT native integration succeeded: ordinary rendered TUI rows through an isolated PTY and fixed read-only selector/navigation keys. No private log, auth.json, cookie/profile, memory or token was read. The previously refused log/session adapter remains absent; its refusal is not erased or treated as authorization to retry that mechanism.
+- The concrete new Legacy adapter returned the two existing IDs repeatedly (~4s each), then through the real CLI and official SDK MCP server. Visible selector coverage is complete, but account-wide API completeness and state remain unknown. Preserve catalog_complete=false and separate coverage metadata instead of overstating success.
+- Native GH pagination returned 33 owned repositories; name correlation found the sample fixture as a candidate association, not a verified one. The installed gh rejects --slurp with --jq, so native pagination/slurp is followed by bounded local normalization.
+- Corrected the earlier over-broad rejection of the Current web proxy path: upstream issue50182 distinguishes it from the Desktop host route. The actual web read and production browser adapter still returned 403 HTML. They stopped and closed owned sessions; no checkbox/challenge, profile import or identity change followed.
+- The v0.4.0 machine-local config under %LOCALAPPDATA%/CloudCodeX/environment-discovery/discovery-readonly.local.json contains only explicit adapter settings, executable pins and the existing browser ID. It is outside the repository and no global default was changed.
+- A fresh check of the historical zero-task test environment returned a task. Keep the ORIGINAL zero-task observation as historical; do not claim a new zero-task live test merely from its old label.
+- Superseded for Legacy only: the v0.3.0/v0.3.1 statements that no concrete native reader is shipped. Still unresolved: successful Current catalog access, unpublished-draft coverage and account-wide authoritative guarantees. No automatic skill installation or marketplace promotion is implied.
+
+## v0.4.0 final review
+
+- Reproduced and fixed native selector failure when the initial selection was already the last environment; Home anchoring preserves full visible-row traversal without task mutation keys.
+- Browser ownership checks now forbid reads/closure of reused or unidentified sessions. The prior Current 403 was not retried.
+- Final local validation: 224 core and 238 core+SDK tests, zero skips. Fresh Legacy CLI and SDK reads returned two real IDs plus 33 owned repositories. See the final section of VALIDATION_0.4.0.md for measured timings and coverage.

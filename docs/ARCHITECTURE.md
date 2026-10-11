@@ -83,3 +83,9 @@ Both CLI and optional MCP now build a startup-configured DiscoveryRuntime. Opera
 The core catalog reader preserves repository associations, versions, drafts, source scope and account continuity. Native/direct provider code remains isolated by generation. The integrated native-session adapter was blocked by a tool safety control; it is not an available default implementation.
 
 The optional server delegates the MCP protocol to the official SDK, while retaining application-level schemas, sanitized errors, read-only annotations, bounded results and progress. No remote HTTP listener or credential broker is exposed. See ADAPTERS.md, MCP_OPTIONAL.md and PROJECT_MEMORY.md for current contracts and observed limitations.
+
+## v0.4.0 concrete execution paths
+
+Legacy first stage may now be native_cli: a pinned executable, isolated PTY, completed-frame renderer and native selector parser. It yields actual visible rows without private log/session access. Current first stage may be browser_web: a pinned BrowserAct CLI and an existing isolated Chrome browser issue the ordinary web catalog GET. Both preserve the existing common services, consent gates and optional MCP.
+
+The list operation optionally enumerates the complete owned GitHub catalog and returns a separate correlation structure. It does not change Cloud identity or coverage. Desktop and web Current API destinations are explicitly distinguished, never automatically interchanged after a denial. See OPERATIONS_0.4.0.md for the current executed architecture and its real limits.
