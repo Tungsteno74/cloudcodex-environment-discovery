@@ -37,6 +37,9 @@ def validate_structure():
     presentation = portable["extensions"]["com.openai"]["interface"]
     if len(presentation["shortDescription"]) > 30:
         raise ValueError("Listing subtitle too long")
+    for view in (presentation, compatibility["interface"]):
+        if view.get("logo") != "./assets/icon.png" or view.get("composerIcon") != "./assets/icon.png":
+            raise ValueError("Plugin icon must be configured in both manifests")
     for skill in ("legacy-discovery", "current-discovery"):
         root = PLUGIN / "skills" / skill
         if "name: " + skill not in (root / "SKILL.md").read_text(encoding="utf-8"):
@@ -55,6 +58,8 @@ def validate_structure():
     if (PLUGIN / "mcp.json").exists():
         raise ValueError("MCP must remain opt-in")
     required = (
+        "assets/icon.png",
+        "assets/icon-origin.json",
         "optional/mcp.json",
         "optional/requirements-mcp.txt",
         "optional/discovery.example.json",

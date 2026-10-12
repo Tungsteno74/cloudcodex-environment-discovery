@@ -20,7 +20,9 @@
           "Verified repository matching",
           "Optional local MCP tools"
         ],
-        "defaultPrompt": "Determine the requested Codex Cloud type first. For Legacy invoke $legacy-discovery; for current-generation Cloud invoke $current-discovery. If both are explicitly requested, invoke the two skills separately and report separate provider statuses; do not produce an implicit mixed catalog. Read-only: no task or environment creation. On missing authorization, report unavailable instead of empty."
+        "defaultPrompt": "Determine the requested Codex Cloud type first. For Legacy invoke $legacy-discovery; for current-generation Cloud invoke $current-discovery. If both are explicitly requested, invoke the two skills separately and report separate provider statuses; do not produce an implicit mixed catalog. Read-only: no task or environment creation. On missing authorization, report unavailable instead of empty.",
+        "logo": "./assets/icon.png",
+        "composerIcon": "./assets/icon.png"
       },
       "apps": "./.app.json"
     }

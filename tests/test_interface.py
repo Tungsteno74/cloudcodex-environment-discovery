@@ -95,5 +95,37 @@ class InterfaceTests(unittest.TestCase):
         self.assertFalse((ROOT / '.agents/plugins/marketplace.json').exists())
 
 
+class BrandingTests(unittest.TestCase):
+    def test_both_manifests_share_the_actual_local_icon(self):
+        portable = json.loads((PLUGIN / 'plugin.json').read_text(encoding='utf-8'))
+        compatibility = json.loads((PLUGIN / '.codex-plugin/plugin.json').read_text(encoding='utf-8'))
+        for view in (portable['extensions']['com.openai']['interface'], compatibility['interface']):
+            self.assertEqual(view['logo'], './assets/icon.png')
+            self.assertEqual(view['composerIcon'], './assets/icon.png')
+            self.assertTrue((PLUGIN / view['logo']).is_file())
+
+    def test_icon_is_square_rgba_png(self):
+        import struct
+        data = (PLUGIN / 'assets/icon.png').read_bytes()
+        self.assertEqual(data[:8], bytes([137, 80, 78, 71, 13, 10, 26, 10]))
+        self.assertEqual(data[12:16], b'IHDR')
+        width, height, depth, color = struct.unpack('>IIBB', data[16:26])
+        self.assertEqual((width, height, depth, color), (1254, 1254, 8, 6))
+
+    def test_provenance_and_packaged_icon_are_consistent(self):
+        import hashlib
+        provenance = json.loads((PLUGIN / 'assets/icon-origin.json').read_text(encoding='utf-8'))
+        self.assertEqual(provenance['source_git_blob'], '90f40edf8326fa3f6aab967af186badd17f86dff')
+        self.assertEqual(provenance['source_repository'], 'Tungsteno74/cloudcodex-windows-bootstrap')
+        self.assertEqual(provenance['output_sha256'], hashlib.sha256((PLUGIN / 'assets/icon.png').read_bytes()).hexdigest())
+        source = ROOT / provenance['approved_source_path']
+        self.assertTrue(source.is_file())
+        self.assertEqual(provenance['approved_source_sha256'], hashlib.sha256(source.read_bytes()).hexdigest())
+        self.assertTrue(provenance['background_transparent'])
+        self.assertTrue(provenance['foreground_rgb_preserved'])
+        self.assertFalse(provenance['alpha_unchanged'])
+        self.assertFalse(provenance['outside_region_unchanged'])
+
+
 if __name__ == '__main__':
     unittest.main()
