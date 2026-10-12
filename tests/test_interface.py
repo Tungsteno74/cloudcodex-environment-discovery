@@ -76,6 +76,18 @@ class InterfaceTests(unittest.TestCase):
             self.assertFalse(body['catalog_complete'])
             self.assertEqual(body['provider']['provider'], domain)
 
+    def test_current_skill_exposes_point_lookup_and_waiting_status(self):
+        skill = (PLUGIN / "skills/current-discovery/SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("ON HOLD FOR LIVE CURRENT DATA", skill)
+        self.assertIn("current get --environment-id", skill)
+        self.assertIn("point_verified=true", skill)
+        tool = next(
+            item for item in server.tool_specs()
+            if item["name"] == "get_current_environment"
+        )
+        self.assertIn("awaiting a supported authorized backend path", tool["description"])
+        self.assertTrue(tool["annotations"]["readOnlyHint"])
+
     def test_doctor_never_claims_live_coverage(self):
         result = subprocess.run([sys.executable, str(RUNTIME / 'cli.py'), 'current', 'doctor'],
                                 capture_output=True, timeout=10)

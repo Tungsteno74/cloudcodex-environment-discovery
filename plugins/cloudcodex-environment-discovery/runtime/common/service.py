@@ -36,18 +36,11 @@ class EnvironmentDiscoveryService:
         result = self._catalog(account, include_drafts)
         if not correlate_github:
             return result
-        if result["status"] in {
-            "unauthorized",
-            "forbidden",
-            "approval_required",
-            "rate_limited",
-            "timeout",
-            "cancelled",
-        }:
+        if result["status"] in {"timeout", "cancelled"}:
             result["repository_inventory"] = {
                 "status": "not_attempted",
                 "catalog_complete": False,
-                "reason": "discovery_stopped_before_optional_correlation",
+                "reason": "operation_terminated_before_optional_correlation",
             }
             return result
         method = getattr(self._repository_resolver, "list_repositories", None)
@@ -67,12 +60,26 @@ class EnvironmentDiscoveryService:
         result["repository_inventory"] = {
             key: value for key, value in inventory.items() if key != "repositories"
         }
+        # GitHub is an independent read source. A Cloud 401/403/rate-limit
+        # remains terminal for the Cloud provider, but does not invalidate an
+        # explicitly requested GitHub inventory.
+        if result["status"] in {
+            "unauthorized",
+            "forbidden",
+            "approval_required",
+            "rate_limited",
+        }:
+            result["warnings"].append(
+                "Cloud discovery stopped at "
+                + result["status"]
+                + "; GitHub inventory was read independently and does not override that Cloud status"
+            )
         # GitHub alone supplies candidate repository names, NEVER Cloud IDs.
         if not result["environments"]:
             result["repository_candidates"] = inventory.get("repositories", [])
         return result
 
-    def _catalog(self, account=None, include_drafts=False, repository=None):
+    def _catalog(self, account=None, include_drafts=False, repository=None, environment_id=None):
         if not isinstance(include_drafts, bool) or (
             account is not None and (not isinstance(account, str) or not account)
         ):
@@ -80,13 +87,17 @@ class EnvironmentDiscoveryService:
         checkpoint()
         try:
             finder = getattr(self._provider, "find_environments", None)
-            result = (
-                finder(repository=repository, account=account, include_drafts=include_drafts)
-                if repository is not None and callable(finder)
-                else self._provider.list_environments(
+            direct = getattr(self._provider, "get_environment", None)
+            if environment_id is not None and callable(direct):
+                result = direct(environment_id, account=account)
+            elif repository is not None and callable(finder):
+                result = finder(
+                    repository=repository, account=account, include_drafts=include_drafts
+                )
+            else:
+                result = self._provider.list_environments(
                     account=account, include_drafts=include_drafts
                 )
-            )
             if result.provider != self.cloud_type or any(
                 i.cloud_type != self.cloud_type for i in result.environments
             ):
@@ -122,6 +133,7 @@ class EnvironmentDiscoveryService:
             elif not entries or any(i.account != account for i in entries):
                 complete = False
                 warnings.append("Requested account identity was not verified by this provider")
+        fresh = True
         for entry in entries:
             if entry.evidence != "live":
                 continue
@@ -132,13 +144,31 @@ class EnvironmentDiscoveryService:
                 age = (datetime.now(timezone.utc) - when).total_seconds()
                 if age < -5 or age > 60:
                     complete = False
+                    fresh = False
                     warnings.append("Stale live evidence must be revalidated")
             except (ValueError, TypeError, AttributeError):
                 complete = False
+                fresh = False
                 warnings.append("Invalid observation timestamp")
-        status = result.status if complete or result.status not in {"ok", "empty"} else "partial"
+        point_verified = (
+            environment_id is not None
+            and result.coverage.get("point_verified") is True
+            and result.status == "ok"
+            and fresh
+            and len(entries) == 1
+            and entries[0].environment_id == environment_id
+            and entries[0].evidence == "live"
+            and (account is None or (result.account_verified and result.account == account))
+        )
+        status = (
+            result.status
+            if complete or point_verified or result.status not in {"ok", "empty"}
+            else "partial"
+        )
         metadata = result.to_dict()
         metadata["catalog_complete"] = complete
+        if environment_id is not None:
+            metadata["coverage"] = dict(metadata["coverage"], point_verified=point_verified)
         return {
             "cloud_type": self.cloud_type,
             "account": account,
@@ -166,6 +196,15 @@ class EnvironmentDiscoveryService:
         if self._repository_resolver is not None:
             repository_evidence = self._repository_resolver.resolve(repository)
             if repository_evidence.get("status") != "verified":
+                from .correlation import repository_counterpart
+
+                counterpart = repository_counterpart(
+                    [],
+                    repository,
+                    repository_evidence,
+                    cloud_catalog_status="not_attempted",
+                    cloud_catalog_complete=False,
+                )
                 return {
                     "cloud_type": self.cloud_type,
                     "repository": repository,
@@ -175,6 +214,7 @@ class EnvironmentDiscoveryService:
                     "environments": [],
                     "observed_at": now_utc(),
                     "repository_evidence": repository_evidence,
+                    "repository_counterpart": counterpart,
                     "provider": {
                         "provider": self.cloud_type,
                         "status": "not_attempted",
@@ -199,20 +239,58 @@ class EnvironmentDiscoveryService:
             )
             if match != "none":
                 matches.append(descriptor.with_match(match).to_dict())
-        result.update(repository=repository, environments=matches, count=len(matches))
+        from .correlation import repository_counterpart
+
+        counterpart = repository_counterpart(
+            result["environments"],
+            repository,
+            repository_evidence,
+            cloud_catalog_status=result["status"],
+            cloud_catalog_complete=result["catalog_complete"],
+        )
+        result.update(
+            repository=repository,
+            environments=matches,
+            count=len(matches),
+            repository_counterpart=counterpart,
+        )
         return result
 
     def get_environment(self, environment_id: str, account: Optional[str] = None) -> Dict[str, Any]:
         if not isinstance(environment_id, str) or not environment_id.strip():
             raise ValueError("Immutable environment ID required")
-        catalog = self.list_environments(account=account, include_drafts=True)
-        candidates = [i for i in catalog["environments"] if i["environment_id"] == environment_id]
-        if len(candidates) > 1:
+        if self.cloud_type == "current":
+            from current.detail import valid_configuration_id
+
+            if not valid_configuration_id(environment_id):
+                raise ValueError("Invalid Current Configuration ID")
+            catalog = self._catalog(
+                account=account, include_drafts=True, environment_id=environment_id
+            )
+        else:
+            catalog = self.list_environments(account=account, include_drafts=True)
+        candidates = [
+            item for item in catalog["environments"]
+            if item["environment_id"] == environment_id
+        ]
+        point_verified = (
+            self.cloud_type == "current"
+            and catalog["provider"].get("coverage", {}).get("point_verified") is True
+        )
+        if self.cloud_type == "current" and catalog["status"] in {
+            "unauthorized", "forbidden", "rate_limited", "approval_required",
+            "cancelled", "timeout",
+        }:
+            # A denial takes precedence over earlier imported/partial candidates.
+            # Keep those as candidates only, never claim one as a current result.
+            status = catalog["status"]
+        elif len(candidates) > 1:
             status = "ambiguous"
         elif candidates:
             status = (
                 "found"
-                if catalog["catalog_complete"] and candidates[0]["evidence"] == "live"
+                if (catalog["catalog_complete"] or point_verified)
+                and candidates[0]["evidence"] == "live"
                 else "unverified"
             )
         else:
@@ -223,6 +301,7 @@ class EnvironmentDiscoveryService:
             "environment": candidates[0] if len(candidates) == 1 else None,
             "candidates": candidates,
             "catalog_complete": catalog["catalog_complete"],
+            "point_verified": point_verified,
             "provider": catalog["provider"],
             "warnings": catalog["warnings"],
         }
@@ -269,4 +348,5 @@ class EnvironmentDiscoveryService:
             "warnings": catalog["warnings"],
             "observed_at": catalog["observed_at"],
             "repository_evidence": catalog.get("repository_evidence"),
+            "repository_counterpart": catalog.get("repository_counterpart"),
         }

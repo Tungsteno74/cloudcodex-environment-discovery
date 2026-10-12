@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
@@ -118,6 +117,90 @@ class ModelTests(unittest.TestCase):
         )
         self.assertEqual(entry.repository, "team/repo")
         self.assertEqual(entry.repository_id, "4")
+
+    def test_parse_current_detailed_repository_id_shape(self):
+        entry = parse_environment(
+            {
+                "id": "cfg-current",
+                "name": "Current config",
+                "repositories": [{"repositoryId": "1408634524", "ref": "main"}],
+                "versionRevision": 3,
+            },
+            "current",
+            "user",
+            "desktop_catalog",
+        )
+        self.assertEqual(entry.repository_id, "1408634524")
+        self.assertEqual(
+            entry.repositories,
+            ({"repository": None, "repository_id": "1408634524"},),
+        )
+        self.assertEqual(entry.configuration_version, "3")
+
+    def test_parse_current_catalog_repository_ids_shape(self):
+        entry = parse_environment(
+            {
+                "id": "cfg-current",
+                "name": "Current config",
+                "repository_ids": ["1408634524", 99],
+            },
+            "current",
+            "user",
+            "desktop_catalog_cache",
+        )
+        self.assertEqual(
+            entry.repositories,
+            (
+                {"repository": None, "repository_id": "1408634524"},
+                {"repository": None, "repository_id": "99"},
+            ),
+        )
+        self.assertIsNone(entry.repository_id)
+
+    def test_parse_current_camel_catalog_repository_ids_shape(self):
+        entry = parse_environment(
+            {
+                "id": "cfg-current",
+                "repositoryIds": ["7"],
+                "versionId": "v-current",
+            },
+            "current",
+            "workspace",
+            "desktop_catalog_cache",
+        )
+        self.assertEqual(entry.repository_id, "7")
+        self.assertEqual(entry.configuration_version, "v-current")
+
+    def test_parse_legacy_repo_map_shape(self):
+        entry = parse_environment(
+            {
+                "id": "legacy-id",
+                "label": "Legacy",
+                "repos": ["7"],
+                "repo_map": {"7": {"repository_full_name": "Owner/Repo"}},
+            },
+            "legacy",
+            "user",
+            "codex_client",
+        )
+        self.assertEqual(entry.repository, "owner/repo")
+        self.assertEqual(entry.repository_id, "7")
+
+    def test_malformed_current_repository_ids_fail_closed(self):
+        with self.assertRaises(ValueError):
+            parse_environment(
+                {"id": "cfg", "repository_ids": "7"},
+                "current",
+                "user",
+                "desktop_catalog_cache",
+            )
+        with self.assertRaises(ValueError):
+            parse_environment(
+                {"id": "cfg", "repositories": [{"repositoryId": True}]},
+                "current",
+                "user",
+                "desktop_catalog",
+            )
 
     def test_parse_name_does_not_infer_repository(self):
         entry = parse_environment(

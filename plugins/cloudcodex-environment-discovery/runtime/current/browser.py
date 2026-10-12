@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import json
 import re
-from typing import Callable, Mapping
+from typing import Callable, Mapping, Optional
 from urllib.parse import urlencode
 from uuid import uuid4
 
@@ -124,6 +124,47 @@ class BrowserActCatalogProvider:
             content_type=content_type,
         )
 
+    def _session_record(self, session: str) -> Optional[Mapping]:
+        """Find one named session using BrowserAct's authoritative session list.
+
+        The "reused" field returned by browser open describes reuse of the
+        persistent browser, not ownership of a freshly named session.
+        """
+        response = self._command(("session", "list"))
+        sessions = response.get("sessions")
+        if not isinstance(sessions, list):
+            raise AdapterError("browser_session_inventory_invalid")
+        if any(
+            not isinstance(item, dict)
+            or not isinstance(item.get("session_name"), str)
+            for item in sessions
+        ):
+            raise AdapterError("browser_session_inventory_invalid")
+        matches = [item for item in sessions if item["session_name"] == session]
+        if len(matches) > 1:
+            raise AdapterError("browser_session_identity_ambiguous")
+        return matches[0] if matches else None
+
+    def _owns_session(self, session: str) -> bool:
+        record = self._session_record(session)
+        return record is not None and self._owns_record(record)
+
+    def _close_owned_session(self, session: str) -> bool:
+        """Close only a uniquely named session verified on the target browser."""
+        record = self._session_record(session)
+        if record is None:
+            return True
+        if not self._owns_record(record):
+            return False
+        self._command(("session", "close", session))
+        return self._session_record(session) is None
+
+    def _owns_record(self, record: Mapping) -> bool:
+        return (
+            record.get("browser_id") == self.settings.browser_id
+            and record.get("browser_type") == "chrome"
+        )
+
     def list_environments(self, account=None, include_drafts=False) -> ProviderResult:
         operation = active_operation(45)
         with operation_scope(operation):
@@ -146,9 +187,18 @@ class BrowserActCatalogProvider:
                     reason="browser_confirmation_required",
                 )
             session = "cloudcodex-catalog-" + uuid4().hex
-            opened = False
+            created_after_precheck = False
             result = None
             try:
+                # A random name alone is not sufficient ownership proof.
+                # Check that no pre-existing session has our chosen identity.
+                if self._session_record(session) is not None:
+                    return ProviderResult(
+                        provider=self.name,
+                        status="forbidden",
+                        reason="browser_session_name_collision",
+                    )
+                created_after_precheck = True
                 response = self._command(
                     (
                         "--session",
@@ -159,16 +209,25 @@ class BrowserActCatalogProvider:
                         "https://chatgpt.com/",
                     )
                 )
-                opened = (
-                    response.get("reused") is False
-                    and response.get("browser_type") == "chrome"
-                    and response.get("browser_id") == self.settings.browser_id
-                )
-                if not opened:
-                    return ProviderResult(
-                        provider=self.name, status="forbidden", reason="unexpected_browser_session",
-                        warnings=["No catalog read or session close: returned session ownership was not confirmed"],
+
+                # BrowserAct may report the persistent browser as "workbench"
+                # or mark it reused. Neither describes ownership of the newly
+                # named session. The session inventory supplies its real ID.
+                owned = self._owns_session(session)
+                if (
+                    not owned
+                    or response.get("session_name") != session
+                    or response.get("browser_type") != "chrome"
+                ):
+                    result = ProviderResult(
+                        provider=self.name,
+                        status="forbidden",
+                        reason="unexpected_browser_session",
+                        warnings=[
+                            "Catalog GET skipped: new session ownership was not confirmed"
+                        ],
                     )
+                    return result
                 provider = CurrentCloudEnvironmentProvider(
                     transport=lambda url, query: self._transport(session, url, query),
                     scopes=self.scopes,
@@ -180,17 +239,20 @@ class BrowserActCatalogProvider:
                 result.source = "browseract_web_catalog"
                 return result
             finally:
-                if opened:
-                    # Cleanup is independent of a cancelled read budget. Never
-                    # close an unrelated user's browser or a persistent profile.
+                if created_after_precheck:
+                    # Even a failed open may have created our session: reconcile
+                    # real state before cleanup. Never close other sessions or
+                    # the persistent browser. Cleanup has an independent budget.
                     try:
-                        with operation_scope(Operation(8)):
-                            self._command(("session", "close", session))
+                        with operation_scope(Operation(12)):
+                            cleanup_ok = self._close_owned_session(session)
                     except (AdapterError, OSError, RuntimeError):
-                        if result is not None:
+                        cleanup_ok = False
+                        if result is None:
+                            raise
+                    if result is not None:
+                        result.coverage["session_cleanup_confirmed"] = cleanup_ok
+                        if not cleanup_ok:
                             result.warnings.append(
                                 "Owned browser session cleanup was not confirmed"
                             )
-                            result.coverage["session_cleanup_confirmed"] = False
-                        else:
-                            raise

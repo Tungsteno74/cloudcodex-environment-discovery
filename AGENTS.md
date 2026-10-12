@@ -37,3 +37,29 @@ This repository is the independent lifecycle boundary for the read-only Codex Cl
 - Do not add Enter/New Task/Apply, credential reads or log parsing to native selector navigation. Keep visible-row coverage separate from account-wide completeness.
 - Keep Current browser reads limited to an existing isolated Chrome browser and fixed GETs. No profile imports, primary-browser control, proxy changes, dialog auto-approval or challenge solving. A 403 stops the sequence.
 - Repository name equality is a candidate join. Never generate environment IDs from GitHub names or promote GitHub catalog completeness to Cloud completeness.
+
+
+## v0.4.1 point-by-ID Current (authorized access pending)
+- A known, validated Configuration ID may be checked through the exact
+  Desktop GET /v1/environment-configs/{configId} on an existing approved
+  read-only transport; do not build by-name, by-repo or unobserved draft URLs.
+- A 200 matching JSON verifies that single ID only (point_verified), never
+  the complete catalog; 401/403 and authorization/security challenges stop
+  Cloud escalation. Catalog-only configured stages remain read-only.
+- Current's skill and tool descriptions must acknowledge that live Current
+  API reads currently return 401 JSON/403 challenge, while remaining
+  available without claiming a scheduled OpenAI fix. Legacy remains operational.
+- Do not import identities or browser profiles, read credentials, create
+  environments, or mutate the plugin's account installation while paused.
+
+## v0.4.1 optional Webcmd constraints
+- Current Webcmd is only a separately approved, read-only source. It uses an
+  already installed/pinned Webcmd CLI, preexisting isolated browser and
+  existing profile, not credential extraction or profile bootstrap.
+- Keep the URL fixed to the original Current backend, preserve scope/draft
+  pagination and stop at the first 401/403/rate-limit. Do not use another
+  browser or account as a fallback after a denial.
+- Every transient Webcmd session must be identified in the before/after
+  inventory and cleaned without touching user sessions. A missing profile,
+  malformed catalog, ambiguous ownership or cleanup failure must not be
+  converted into a successful complete result.

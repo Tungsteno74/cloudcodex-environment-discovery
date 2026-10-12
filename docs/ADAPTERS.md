@@ -100,3 +100,55 @@ Current onboarding can also use an approved path containing an explicit Codex Ta
 ## v0.4.0 implemented adapters
 
 The former generic-host limitation is superseded for native Legacy and the Current browser web path. Native_cli reads only the visible native TUI in an isolated terminal; browser_web invokes a fixed same-origin GET in an already-prepared isolated Chrome browser. These are alternatives to primary hosts, not provisioning or credential-broker fallbacks. Native Legacy yielded actual rows; Current still returned 403. Their concrete settings, version/dependency gates and coverage semantics are in OPERATIONS_0.4.0.md.
+
+## v0.4.1 independent GitHub and Current repository counterpart
+
+GitHub inventory is not a Cloud escalation stage. If a Current Cloud source returns 401/403/rate-limited, that Cloud path remains terminal, but an explicitly requested and configured GitHub inventory may still run because it is a separate read source. Its result is attached without replacing the Cloud status. Cancellation/timeout still ends the whole operation.
+
+The installed Current Desktop 26.1007.2314.0 client was inspected to validate the data relationship. Catalog/cache rows expose `repository_ids[]`; detailed configurations expose `repositories[].repository_id`, normalized client-side as `repositoryId`. The settings flow reads `environmentConfigs.catalog()`, calls `refreshCatalog()`, then rereads the catalog, while known configuration IDs can be fetched through `environmentConfigs.request(..., method: "GET")`. The plugin normalizes those repository-ID forms and classifies counterparts by repository ID first, explicit canonical repository second, and environment-name equality only as a hint. No dedicated Current by-repository GET endpoint was evidenced by the original note or client inspection.
+
+
+## v0.4.1 optional Current Webcmd stage
+
+A new kind 'webcmd' is a concrete read-only Current adapter, independently of
+generic JSON command hosts. The user-facing stage order is:
+
+    Current: primary -> webcmd -> browser_web -> http -> onboarding -> snapshot
+
+Skipped/unconfigured stages have no effect. Denials remain terminal rather
+than triggering a different browser identity or Cloud API surface.
+
+The operator must provide an absolute Node executable and the matching
+@agentrhq/webcmd/dist/src/main.js entrypoint, both SHA-256 pinned via the
+existing CommandSpec contract; a pre-installed browser_binary and a previously
+existing profile alias are required. The adapter uses the original Current
+backend URL, not the ChatGPT Web proxy. No new profile/bootstrap, login, token
+access or challenge automation occurs. It creates and cleans up only a
+temporary named session and retains the original Current page/coverage rules.
+
+Validated live on PCVAL: Webcmd 0.8.4 with existing CloakBrowser 0.4.5 profile
+returned HTTP 401 application/json (unauthorized), not the 403 Cloudflare HTML
+from simple HTTP. Zero environments returned; the owned session was cleaned.
+This does NOT establish an authorized Current catalog or draft coverage.
+
+Full operator configuration and prerequisites: WEBCMD_CURRENT_ESCALATION.md.
+
+
+## Current point operation (v0.4.1, authorization pending)
+
+With a known safe Configuration ID, `get_current_environment` invokes
+`GET https://codex-cloud-backend.chatgpt.com/v1/environment-configs/{configId}`
+on an already-approved Desktop HTTP or Webcmd transport; the HTTP relay
+allowlist permits exactly that single path segment and empty query, while
+catalog GETs retain their previous whitelist. The Webcmd adapter reuses the
+same pinned executable, isolated browser and owned-session reconciliation.
+An unobserved BrowserAct Web-proxy point URL is not enabled.
+
+An exact matching 200 JSON response with verified provenance is evidence for
+one configuration, `point_verified=true`; full catalog coverage is always
+false for that response. Generic catalog-only stages may still supply
+candidates from their ordinary catalog, but 401/403/rate limiting are terminal
+and prevent further Current escalation. The last live by-ID Webcmd test
+returned HTTP 401 JSON; anonymous HTTP returned 403 HTML. No current item was
+verified. The Current skill is available but live catalog/detail is on hold
+until authorized access is supported; Legacy is unaffected.

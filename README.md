@@ -8,12 +8,12 @@ Read-only recovery of **existing** Codex Cloud environments. Two independent ski
 |---|---|---|
 | Legacy native CLI selector | Complete screen-only adapter, isolated terminal | **Two real environment IDs returned repeatedly**, also through CLI and optional MCP |
 | Owned GitHub repository catalog | Native `gh api` pagination and account continuity | **33 repositories enumerated**, correlated to the observed Legacy rows |
-| Current web catalog | Built-in BrowserAct read-only GET adapter | **HTTP 403**, reported as `forbidden`; no challenge bypass or second-scope retry |
+| Current web catalog | Built-in BrowserAct read-only GET adapter | **HTTP 403**, reported as `forbidden`; the Cloud path stops, while explicitly requested GitHub discovery remains independent |
 | Current Desktop catalog | Approved HTTP host adapter, separately configured endpoint | No connected authorized direct host validated in this release |
 | Current onboarding | Existing connector exports or approved host | Indirect hints only, not a substitute for configuration IDs |
 | Optional MCP | Official SDK, eight tools, cancellation/progress/schema validation | Actual live Legacy catalog call succeeded; no automatic MCP registration |
 
-**Current discovery is not claimed to return a live environment list yet.** Its executable browser adapter now reaches the catalog route and returns the actual authorization blocker instead of requiring an unspecified host implementation. An authentication/Cloudflare denial cannot be fixed by declaring a test fixture successful.
+**Current discovery is not claimed to return a live environment list yet.** Repository-centric discovery is nevertheless usable under that blocker: an explicitly authorized GitHub read can verify the requested repository independently, while `find_current_environments` returns `repository_counterpart`. A counterpart is `verified` only when an observed Current configuration carries the same `repository_id` or explicit repository association; environment-name equality is only a `candidate`. A 403 therefore remains a Cloud denial, not a false empty result.
 
 ## Native Legacy, without credentials or private logs
 
@@ -71,3 +71,18 @@ python -X utf8 tools/build_release.py
 Core tests are offline; optional SDK tests run real stdio client/server processes with fixtures. Separately recorded live reads validate the native Legacy and GitHub paths and the Current 403 response. See [VALIDATION_0.4.0.md](docs/VALIDATION_0.4.0.md), [PROJECT_MEMORY.md](docs/PROJECT_MEMORY.md) and [CHANGELOG.md](CHANGELOG.md).
 
 Canonical source: `Tungsteno74/cloudcodex-environment-discovery`. The separate GSM marketplace PR remains draft; publication of a GitHub preview does not install this plugin into ChatGPT Chat. CloudCodeX Windows Bootstrap 0.6.6 and its three gates are unchanged. MIT license.
+
+
+## v0.4.1 — Current status: usable, live access pending
+
+The Current skill is **implemented but on hold for live environment identification** until an authorized and supported Current Cloud backend access path becomes available. This is an observed authorization issue, not a confirmed OpenAI fix schedule. Live Current catalog and exact-ID requests have returned **401 JSON via Webcmd** or **403 Cloudflare HTML via anonymous HTTP**; neither is a verified empty catalog. Legacy discovery stays independently operational.
+
+A known immutable Current Configuration ID now uses the documented Desktop point route `GET /v1/environment-configs/{configId}` through a configured, already-approved Desktop HTTP or Webcmd adapter. CLI example:
+
+```sh
+python plugins/cloudcodex-environment-discovery/runtime/cli.py current get --environment-id '<known-current-config-id>' --config /absolute/discovery.json --pretty
+```
+
+A successful 200 JSON with a matching ID verifies *one configuration*, reported as `point_verified=true` with `catalog_complete=false`; it does not prove all environments, revisions or drafts have been enumerated. For a configured catalog-only stage, `get` retains its conservative catalog matching behavior. 401/403/429 terminate Cloud escalation; no automatic browser/account switching, profile imports, credential extraction or challenge handling. Current `list/find/resolve` remain catalog-dependent and may return blockers plus independently sourced repository/onboarding hints.
+
+See [Current point-read and pending status](docs/CURRENT_POINT_LOOKUP_0.4.1.md) and [Current skill](plugins/cloudcodex-environment-discovery/skills/current-discovery/SKILL.md). No release/merge/publication is implied by the local v0.4.1 preview.

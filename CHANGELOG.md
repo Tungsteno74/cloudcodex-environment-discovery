@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.4.1 - Independent GitHub fallback and Current repository counterpart
+
+- Implemented Current direct lookup by known immutable Configuration ID (`GET /v1/environment-configs/{configId}`) on approved Webcmd and Desktop HTTP transports. Safe URL-only single segment, strict 200 JSON/ID/account matching, explicit `point_verified` distinct from `catalog_complete`, and no catalog enumeration requirement for point-aware providers.
+- `get_current_environment` now selects direct point reads within approved escalation stages. Missing/recoverable stages may proceed, but 401/403/429 and security denials remain terminal. Catalog-only providers preserve conservative fallback semantics; Legacy is unchanged.
+- Current skill/manifest/MCP descriptions explicitly label the operational state **available, live access pending**: observed point and catalog Webcmd reads still return 401 JSON; anonymous HTTP returned a Cloudflare 403 HTML. No OpenAI fix date is asserted and historical IDs are never promoted to fresh current proof.
+
+
+- Added optional, hash-pinned Webcmd as a native Current discovery escalation stage before BrowserAct, using a preexisting isolated browser and profile, the original backend GET, explicit user/workspace pagination, and owned-session cleanup. No account/profile creation, cookie/token inspection or challenge automation.
+- Real reference-host v0.4.1 test: Webcmd 0.8.4 returned HTTP 401 JSON (unauthorized), no environment IDs, one terminal stage and confirmed cleanup with zero leftover sessions. This is working transport, NOT authenticated Current discovery. 401/403 still terminates Cloud escalation.
+
+- GitHub inventory is now an independent read path: Current 401/403/rate-limit stops the Cloud provider but no longer suppresses an explicitly requested GitHub read.
+- `find_current_environments(repository)` now returns `repository_counterpart` with `verified`, `candidate`, `not_found` or `not_verifiable` semantics.
+- Current counterpart verification prioritizes `repository_id`, then an explicit canonical repository association. Environment-name equality remains a hint and never invents a Configuration ID.
+- Inspection of installed Current Desktop 26.1007.2314.0 confirmed catalog/cache `repository_ids[]` plus detailed `repositories[].repository_id`/`repositoryId` forms; the parser now preserves those IDs and Current version ID/revision fields.
+- Desktop Current published-config reads use client-observed `view=picker` first; only HTTP 400 falls back once to the same-surface standard list. Picker-only coverage is explicitly partial and cannot prove absence; the standard fallback retains all revisions (no GUI-only filtering). The Web proxy keeps its standard GET, and draft-inclusive queries skip picker.
+- Fixed BrowserAct session ownership: `browser open` can report browser alias `workbench` or reuse the persistent browser. Only a session absent before open and verified after open in `session list` grants read/cleanup ownership. A failed open is reconciled and only owned sessions are closed. Live Web GET reached HTTP 403 with zero leftover sessions.
+- No dedicated Current by-repository GET endpoint was validated or invented. Cloud denial still forbids alternate Cloud-surface/account retry, challenge bypass, provisioning or credential extraction.
+
 ## 0.4.0 — Live Legacy list and concrete Current web adapter
 
 - Implemented the isolated screen-only native Legacy selector reader. Real IDs now return through CLI and optional MCP without reading private logs or credentials.

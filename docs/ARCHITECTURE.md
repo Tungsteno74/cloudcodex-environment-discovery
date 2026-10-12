@@ -70,7 +70,7 @@ When Legacy becomes obsolete:
 3. Remove tests/test_legacy.py and Legacy release documentation.
 4. Keep runtime/current, tests/test_current.py and common model/service unchanged.
 
-Current live transport will be implemented independently as soon as an officially authorized method is available.
+Current transport is implemented through explicit Desktop/web catalog adapters, but a successful live Current catalog remains authorization-dependent. Repository-oriented Current discovery can still return independent GitHub evidence and counterpart candidates without converting that evidence into Cloud success.
 
 ## Validation
 
@@ -89,3 +89,7 @@ The optional server delegates the MCP protocol to the official SDK, while retain
 Legacy first stage may now be native_cli: a pinned executable, isolated PTY, completed-frame renderer and native selector parser. It yields actual visible rows without private log/session access. Current first stage may be browser_web: a pinned BrowserAct CLI and an existing isolated Chrome browser issue the ordinary web catalog GET. Both preserve the existing common services, consent gates and optional MCP.
 
 The list operation optionally enumerates the complete owned GitHub catalog and returns a separate correlation structure. It does not change Cloud identity or coverage. Desktop and web Current API destinations are explicitly distinguished, never automatically interchanged after a denial. See OPERATIONS_0.4.0.md for the current executed architecture and its real limits.
+
+## v0.4.1 repository-oriented Current discovery
+
+`CurrentCloudEnvironmentProvider` remains responsible for the Current catalog. `NativeGitHubRepositoryResolver` is an independent evidence source, not a fallback Cloud transport. `EnvironmentDiscoveryService.find_environments()` joins a verified GitHub repository identity to observed Current configurations and emits `repository_counterpart`. Exact repository IDs are authoritative for existence of returned configurations; names are candidates only. A denied Current provider is preserved as denied even when GitHub succeeds.
