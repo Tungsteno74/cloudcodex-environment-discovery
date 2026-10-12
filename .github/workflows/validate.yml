@@ -33,6 +33,14 @@ jobs:
         run: python -X utf8 tools/validate.py
       - name: Build standalone opt-in package
         run: python -X utf8 tools/build_release.py
+      - name: Retain verified release package for Cloud installation
+        if: ${{ github.ref == 'refs/heads/main' && matrix.python-version == '3.12' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cloudcodex-environment-discovery-package-${{ github.sha }}
+          path: dist/cloudcodex-environment-discovery-*.zip
+          if-no-files-found: error
+          retention-days: 7
 
   optional-mcp:
     runs-on: ${{ matrix.os }}
