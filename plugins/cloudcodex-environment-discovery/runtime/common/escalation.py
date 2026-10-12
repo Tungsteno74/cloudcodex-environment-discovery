@@ -45,12 +45,16 @@ class EscalatingProvider:
     def find_environments(self, repository, account=None, include_drafts=False):
         return self._query(account, include_drafts, repository)
 
-    def _query(self, account, include_drafts, repository=None):
+    def get_environment(self, environment_id: str, account=None) -> ProviderResult:
+        """Prioritize each approved stage's point GET over catalog enumeration."""
+        return self._query(account, True, environment_id=environment_id)
+
+    def _query(self, account, include_drafts, repository=None, environment_id=None):
         operation = active_operation()
         with operation_scope(operation):
-            return self._run(operation, account, include_drafts, repository)
+            return self._run(operation, account, include_drafts, repository, environment_id)
 
-    def _run(self, operation, account, include_drafts, repository):
+    def _run(self, operation, account, include_drafts, repository, environment_id):
         attempts = []
         hints = []
         best: Optional[ProviderResult] = None
@@ -67,10 +71,25 @@ class EscalatingProvider:
                 continue
             started = monotonic()
             try:
-                finder = getattr(stage.provider, "find_environments", None)
-                result = (finder(repository=repository, account=verified_account, include_drafts=include_drafts)
-                          if repository is not None and callable(finder)
-                          else stage.provider.list_environments(account=verified_account, include_drafts=include_drafts))
+                if environment_id is not None:
+                    direct = getattr(stage.provider, "get_environment", None)
+                    if callable(direct):
+                        result = direct(environment_id, account=verified_account)
+                    else:
+                        # Existing catalog-only stages remain usable. A point
+                        # 401/403 from an earlier stage is already terminal.
+                        result = stage.provider.list_environments(
+                            account=verified_account, include_drafts=True
+                        )
+                        result.environments = [
+                            item for item in result.environments
+                            if item.environment_id == environment_id
+                        ]
+                else:
+                    finder = getattr(stage.provider, "find_environments", None)
+                    result = (finder(repository=repository, account=verified_account, include_drafts=include_drafts)
+                              if repository is not None and callable(finder)
+                              else stage.provider.list_environments(account=verified_account, include_drafts=include_drafts))
                 if result.provider != self.name:
                     raise AdapterError("host_identity_mismatch")
             except (OperationCancelled, OperationTimedOut):
@@ -121,6 +140,11 @@ class EscalatingProvider:
                     result.warnings = list(best.warnings) + ["Candidate evidence predates the blocked stage"]
                 result.catalog_complete = False
                 return result
+            if (environment_id is not None and result.status == "ok"
+                    and result.evidence == "live"
+                    and result.coverage.get("point_verified") is True
+                    and len(result.environments) == 1):
+                return result  # A single verified ID does not need a full catalog.
             if (result.status in {"ok", "empty"} and result.catalog_complete
                     and result.evidence == "live"):
                 return result  # Also stop on a VERIFIED empty catalog.

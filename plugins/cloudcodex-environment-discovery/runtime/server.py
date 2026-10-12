@@ -14,7 +14,7 @@ from common.configuration import DiscoveryRuntime, load_configuration
 from common.operation import Operation, OperationCancelled, OperationTimedOut, operation_scope
 
 SERVER_NAME = "cloudcodex-environment-discovery"
-VERSION = "0.4.0"
+VERSION = "0.4.1"
 MAX_RESULT_BYTES = 1024 * 1024
 TOOLS = {
     "list_legacy_environments": ("legacy", "list_environments"),
@@ -60,16 +60,23 @@ def tool_specs() -> list:
             required.append("environment_id")
         if operation == "resolve_environment":
             properties["name"] = {"type": "string", "minLength": 1, "maxLength": 4096}
+        description = (
+            operation.replace("_", " ").capitalize()
+            + " for " + domain
+            + " Codex Cloud only. Read-only; provenance and escalation trace included. "
+            + "Unavailable is not an empty verified catalog."
+        )
+        if domain == "current":
+            description += (
+                " Current Cloud is implemented but live catalog and single-ID "
+                "reads are awaiting a supported authorized backend path "
+                "(401 JSON / 403 Cloudflare observed). A known ID is checked "
+                "point-by-point first; this never establishes full catalog coverage."
+            )
         specs.append(
             {
                 "name": name,
-                "description": (
-                    operation.replace("_", " ").capitalize()
-                    + " for "
-                    + domain
-                    + " Codex Cloud only. Read-only; provenance and escalation trace included. "
-                    "Unavailable is not an empty verified catalog."
-                ),
+                "description": description,
                 "inputSchema": {
                     "type": "object",
                     "properties": properties,

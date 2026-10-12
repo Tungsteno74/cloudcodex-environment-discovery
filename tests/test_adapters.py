@@ -67,7 +67,9 @@ class AdapterTests(unittest.TestCase):
     def test_actual_http_host_adapter_paginates_both_scopes(self):
         spec = CommandSpec.from_mapping(specification("http_pages"))
         transport = CommandReadTransport("current", CommandClient(spec))
-        result = CurrentCloudEnvironmentProvider(transport).list_environments()
+        result = CurrentCloudEnvironmentProvider(transport).list_environments(
+            include_drafts=True
+        )
         self.assertTrue(result.catalog_complete)
         self.assertEqual(len(result.environments), 2)
         self.assertTrue(all(i.scope == "user,workspace" for i in result.environments))
@@ -103,6 +105,26 @@ class AdapterTests(unittest.TestCase):
         transport = CommandReadTransport("current", CommandClient(CommandSpec.from_mapping(specification())))
         with self.assertRaisesRegex(AdapterError, "unapproved_catalog_query"):
             transport("https://codex-cloud-backend.chatgpt.com/v1/environment-configs", {"token": "hidden"})
+
+    def test_current_picker_view_is_the_only_approved_view(self):
+        transport = CommandReadTransport(
+            "current", CommandClient(CommandSpec.from_mapping(specification()))
+        )
+        with self.assertRaisesRegex(AdapterError, "unapproved_catalog_query"):
+            transport(
+                "https://codex-cloud-backend.chatgpt.com/v1/environment-configs",
+                {"scope": "user", "view": "admin"},
+            )
+
+    def test_legacy_transport_rejects_picker_view(self):
+        transport = CommandReadTransport(
+            "legacy", CommandClient(CommandSpec.from_mapping(specification()))
+        )
+        with self.assertRaisesRegex(AdapterError, "unapproved_catalog_query"):
+            transport(
+                "https://chatgpt.com/backend-api/wham/environments",
+                {"view": "picker"},
+            )
 
     def test_host_stderr_and_failure_output_not_exposed(self):
         client = CommandClient(CommandSpec.from_mapping(specification("failed")))
@@ -194,7 +216,9 @@ class EscalationTests(unittest.TestCase):
     def test_configured_primary_to_http_escalation_real_processes(self):
         stages = [{"kind": "primary", "approved": True, "command": specification("unavailable")},
                   {"kind": "http", "approved": True, "command": specification("http_pages")}]
-        output = DiscoveryRuntime(configuration(stages=stages)).service("current").list_environments()
+        output = DiscoveryRuntime(configuration(stages=stages)).service("current").list_environments(
+            include_drafts=True
+        )
         self.assertTrue(output["catalog_complete"])
         self.assertEqual([a["stage"] for a in output["provider"]["attempts"]], ["primary", "http"])
 
@@ -249,13 +273,24 @@ class CatalogRegressionTests(unittest.TestCase):
             {"id": "cfg", "version": 2, "draft": True}]}), scopes=("user",))
         result = provider.list_environments(include_drafts=True)
         self.assertEqual(len(result.environments), 2)
-        result = EnvironmentDiscoveryService("current", provider).get_environment("cfg")
+
+        class CatalogOnly:
+            name = "current"
+
+            def list_environments(self, **kwargs):
+                return provider.list_environments(**kwargs)
+
+        # Ambiguity still applies to a full catalog with two revisions.
+        # A direct get-by-ID instead returns one explicitly identified record.
+        result = EnvironmentDiscoveryService("current", CatalogOnly()).get_environment("cfg")
         self.assertEqual(result["status"], "ambiguous")
 
     def test_known_verified_account_can_have_empty_catalog(self):
         provider = CurrentCloudEnvironmentProvider(lambda u, p: HttpResponse(
             200, {"items": []}, account="account", account_verified=True), scopes=("user",))
-        output = EnvironmentDiscoveryService("current", provider).list_environments(account="account")
+        output = EnvironmentDiscoveryService("current", provider).list_environments(
+            account="account", include_drafts=True
+        )
         self.assertTrue(output["catalog_complete"])
         self.assertEqual(output["status"], "empty")
 

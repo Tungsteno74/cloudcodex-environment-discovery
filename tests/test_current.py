@@ -41,7 +41,9 @@ class CurrentProviderTests(unittest.TestCase):
             return HttpResponse(200, {"items": []})
         result = current_provider(request).list_environments()
         self.assertEqual([x["scope"] for x in seen], ["user", "workspace"])
-        self.assertTrue(result.catalog_complete)
+        self.assertFalse(result.catalog_complete)
+        self.assertEqual(result.status, "partial")
+        self.assertTrue(result.coverage["picker_view_only"])
 
     def test_query_is_current_catalog_endpoint_only(self):
         urls = []
@@ -52,6 +54,100 @@ class CurrentProviderTests(unittest.TestCase):
         self.assertEqual(urls, [
             "https://codex-cloud-backend.chatgpt.com/v1/environment-configs"
         ] * 2)
+
+    def test_published_catalog_prefers_picker_view(self):
+        seen = []
+
+        def request(url, args):
+            seen.append(dict(args))
+            return HttpResponse(200, {"items": []})
+
+        result = current_provider(request, scopes=("user",)).list_environments()
+        self.assertEqual(len(seen), 1)
+        self.assertFalse(result.catalog_complete)
+        self.assertTrue(result.coverage["picker_view_only"])
+        self.assertEqual(seen[0]["view"], "picker")
+        self.assertEqual(seen[0]["omitDraft"], "true")
+
+    def test_picker_http_400_falls_back_once_to_standard_list(self):
+        seen = []
+
+        def request(url, args):
+            seen.append(dict(args))
+            if args.get("view") == "picker":
+                return HttpResponse(400, {})
+            return HttpResponse(
+                200,
+                {
+                    "data": [
+                        {
+                            "id": "cfg-fallback",
+                            "name": "Fallback",
+                            "repository_ids": ["7"],
+                            "versionRevision": 2,
+                        }
+                    ]
+                },
+            )
+
+        result = current_provider(request, scopes=("user",)).list_environments()
+        self.assertEqual(result.status, "ok")
+        self.assertTrue(result.catalog_complete)
+        self.assertNotIn("picker_view_only", result.coverage)
+        self.assertEqual(result.environments[0].environment_id, "cfg-fallback")
+        self.assertEqual([query.get("view") for query in seen], ["picker", None])
+
+    def test_picker_400_full_standard_list_keeps_all_existing_revisions(self):
+        def request(url, args):
+            if args.get("view") == "picker":
+                return HttpResponse(400, {})
+            return HttpResponse(
+                200,
+                {
+                    "data": [
+                        {"id": "old", "name": "Old", "versionRevision": 1},
+                        {
+                            "id": "saved",
+                            "name": "Saved",
+                            "version_revision": 2,
+                            "repository_ids": ["7"],
+                        },
+                    ]
+                },
+            )
+
+        result = current_provider(request, scopes=("user",)).list_environments()
+        self.assertTrue(result.catalog_complete)
+        self.assertEqual(
+            [item.environment_id for item in result.environments],
+            ["old", "saved"],
+        )
+        self.assertEqual(result.environments[1].repository_id, "7")
+
+    def test_picker_denial_never_falls_back_to_standard_list(self):
+        for code, status in ((401, "unauthorized"), (403, "forbidden"), (429, "rate_limited")):
+            seen = []
+
+            def request(url, args, response_code=code):
+                seen.append(dict(args))
+                return HttpResponse(response_code, {})
+
+            result = current_provider(request, scopes=("user",)).list_environments()
+            self.assertEqual(result.status, status)
+            self.assertEqual(len(seen), 1)
+            self.assertEqual(seen[0].get("view"), "picker")
+
+    def test_include_drafts_skips_picker_view(self):
+        seen = []
+
+        def request(url, args):
+            seen.append(dict(args))
+            return HttpResponse(200, {"items": []})
+
+        current_provider(request, scopes=("user",)).list_environments(include_drafts=True)
+        self.assertEqual(len(seen), 1)
+        self.assertNotIn("view", seen[0])
+        self.assertEqual(seen[0]["omitDraft"], "false")
 
     def test_omit_draft_true_by_default(self):
         seen = []
@@ -69,12 +165,22 @@ class CurrentProviderTests(unittest.TestCase):
         current_provider(request).list_environments(include_drafts=True)
         self.assertEqual(seen, ["false", "false"])
 
-    def test_scope_empty_complete(self):
+    def test_standard_web_scope_empty_complete(self):
         result = current_provider(
-            lambda url, args: HttpResponse(200, {"items": []})
+            lambda url, args: HttpResponse(200, {"items": []}),
+            api_surface="web",
         ).list_environments()
         self.assertEqual(result.status, "empty")
         self.assertTrue(result.catalog_complete)
+
+    def test_picker_empty_cannot_prove_no_current_environments(self):
+        result = current_provider(
+            lambda url, args: HttpResponse(200, {"items": []})
+        ).list_environments()
+        self.assertEqual(result.status, "partial")
+        self.assertFalse(result.catalog_complete)
+        self.assertEqual(result.environments, [])
+        self.assertTrue(result.coverage["picker_view_only"])
 
     def test_current_normalizes_config_id(self):
         result = current_provider(
@@ -91,6 +197,54 @@ class CurrentProviderTests(unittest.TestCase):
         self.assertEqual(result.environments[0].cloud_type, "current")
         self.assertEqual(result.environments[0].repository_id, "8")
         self.assertEqual(result.environments[0].configuration_state, "published")
+
+    def test_current_catalog_cache_repository_ids_are_preserved(self):
+        result = current_provider(
+            lambda url, args: HttpResponse(
+                200,
+                {
+                    "data": [
+                        {
+                            "id": "cfg-cache",
+                            "name": "cloudcodex-windows-bootstrap-e2e-cloud-auto",
+                            "repository_ids": ["1408634524"],
+                        }
+                    ],
+                    "next_cursor": None,
+                },
+            ),
+            scopes=("user",),
+        ).list_environments()
+        entry = result.environments[0]
+        self.assertEqual(entry.environment_id, "cfg-cache")
+        self.assertEqual(entry.repository_id, "1408634524")
+        self.assertEqual(
+            entry.repositories,
+            ({"repository": None, "repository_id": "1408634524"},),
+        )
+
+    def test_current_normalized_catalog_repositoryId_is_preserved(self):
+        result = current_provider(
+            lambda url, args: HttpResponse(
+                200,
+                {
+                    "data": [
+                        {
+                            "id": "cfg-normalized",
+                            "name": "Current config",
+                            "repositories": [
+                                {"repositoryId": "1408634524", "ref": "main"}
+                            ],
+                            "versionRevision": 4,
+                        }
+                    ]
+                },
+            ),
+            scopes=("user",),
+        ).list_environments()
+        entry = result.environments[0]
+        self.assertEqual(entry.repository_id, "1408634524")
+        self.assertEqual(entry.configuration_version, "4")
 
     def test_unauthorized_stops_other_scopes(self):
         seen = []
@@ -156,7 +310,7 @@ class CurrentProviderTests(unittest.TestCase):
                 )
             )
         result = current_provider(
-            request, scopes=("user",)
+            request, scopes=("user",), api_surface="web"
         ).list_environments()
         self.assertTrue(result.catalog_complete)
         self.assertEqual(len(result.environments), 2)
@@ -190,12 +344,52 @@ class CurrentProviderTests(unittest.TestCase):
                     "id": "cfg-1", "name": "Independent Current",
                     "repository": {"full_name": "Owner/Repo"},
                 }]
-            }), scopes=("user",)
+            }), scopes=("user",), api_surface="web"
         )
         result = build_current_service(provider).resolve_environment(
             repository="owner/repo"
         )
         self.assertEqual(result["status"], "resolved")
+
+    def test_picker_only_exact_match_remains_unverified(self):
+        provider = current_provider(
+            lambda url, args: HttpResponse(200, {
+                "items": [{
+                    "id": "cfg-picker",
+                    "name": "Selected Current",
+                    "repositories": [{"repository_id": "7"}],
+                }]
+            }),
+            scopes=("user",),
+        )
+        result = build_current_service(provider).resolve_environment(repository="7")
+        self.assertEqual(result["status"], "unverified")
+        self.assertIsNone(result["selected"])
+        self.assertFalse(result["catalog_complete"])
+
+    def test_picker_positive_repository_counterpart_without_full_coverage(self):
+        provider = current_provider(
+            lambda url, args: HttpResponse(
+                200,
+                {"data": [
+                    {
+                        "id": "cfg-picker-known",
+                        "name": "Current config",
+                        "repository_ids": ["1408634524"],
+                    }
+                ]},
+            ),
+            scopes=("user",),
+        )
+        service = build_current_service(provider)
+        result = service.find_environments("1408634524")
+        self.assertFalse(result["catalog_complete"])
+        self.assertEqual(result["repository_counterpart"]["status"], "verified")
+        self.assertEqual(result["environments"][0]["environment_id"], "cfg-picker-known")
+        self.assertEqual(
+            service.resolve_environment(name="not-in-picker")["status"],
+            "not_verifiable",
+        )
 
     def test_current_does_not_import_legacy(self):
         text = (RUNTIME / "current/provider.py").read_text(encoding="utf-8")

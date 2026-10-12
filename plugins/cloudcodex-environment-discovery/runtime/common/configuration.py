@@ -19,7 +19,12 @@ from .service import EnvironmentDiscoveryService
 from .snapshot import SnapshotEnvironmentProvider
 
 MAX_CONFIG_BYTES = 1024 * 1024
-ORDER = {"native_cli": 0, "browser_web": 0, "primary": 0, "http": 1, "onboarding": 2, "snapshot": 3}
+# Webcmd is the preferred CURRENT browser transport when explicitly configured.
+# Later sources run only after recoverable failures, never after 401/403.
+ORDER = {
+    "native_cli": 0, "primary": 0, "webcmd": 1,
+    "browser_web": 2, "http": 3, "onboarding": 4, "snapshot": 5,
+}
 
 
 def _unique_object(pairs):
@@ -108,7 +113,7 @@ def validate_configuration(content: Mapping[str, Any]) -> dict:
         ):
             raise ValueError("Catalog api_surface applies explicitly to Current only")
         stages = settings.get("stages", [])
-        if not isinstance(stages, list) or len(stages) > 4:
+        if not isinstance(stages, list) or len(stages) > 6:
             raise ValueError("Invalid escalation stage list")
         seen, previous = set(), -1
         for stage in stages:
@@ -119,18 +124,29 @@ def validate_configuration(content: Mapping[str, Any]) -> dict:
                 "path",
                 "native",
                 "browser",
+                "webcmd",
             }:
                 raise ValueError("Invalid stage configuration")
             kind = stage.get("kind")
             if kind not in ORDER or kind in seen or ORDER[kind] <= previous:
-                raise ValueError("Escalation order must be primary, http, onboarding, snapshot")
+                raise ValueError("Invalid escalation order for native/Current and indirect stages")
             if domain == "legacy" and kind == "onboarding":
                 raise ValueError("Onboarding hints apply only to Current")
             seen.add(kind)
             previous = ORDER[kind]
             if type(stage.get("approved", False)) is not bool:
                 raise ValueError("Stage approval must be explicit boolean")
-            if kind == "browser_web":
+            if kind == "webcmd":
+                if domain != "current" or any(
+                    key in stage for key in ("command", "path", "native", "browser")
+                ):
+                    raise ValueError("Webcmd applies only to Current")
+                from current.webcmd import WebcmdSettings
+
+                WebcmdSettings.from_mapping(stage.get("webcmd"))
+            elif "webcmd" in stage:
+                raise ValueError("Webcmd settings require webcmd stage")
+            elif kind == "browser_web":
                 if domain != "current" or any(
                     key in stage for key in ("command", "path", "native")
                 ):
@@ -202,7 +218,16 @@ class DiscoveryRuntime:
         stages = []
         for spec in settings.get("stages", []):
             kind = spec["kind"]
-            if kind == "browser_web":
+            if kind == "webcmd":
+                from current.webcmd import WebcmdCatalogProvider, WebcmdSettings
+
+                provider = WebcmdCatalogProvider(
+                    WebcmdSettings.from_mapping(spec["webcmd"]),
+                    scopes=settings.get("scopes", ("user", "workspace")),
+                    page_limit=settings.get("page_limit", 12),
+                    page_size=settings.get("page_size", 100),
+                )
+            elif kind == "browser_web":
                 from current.browser import BrowserActCatalogProvider, BrowserSettings
 
                 provider = BrowserActCatalogProvider(

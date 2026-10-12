@@ -113,11 +113,64 @@ class HttpResponse:
     content_type: str = "application/json"
 
 
+def _repository_identifier(value: Any) -> Optional[str]:
+    if isinstance(value, bool) or not isinstance(value, (str, int)):
+        return None
+    normalized = str(value).strip()
+    return normalized or None
+
+
 def _associations(item: Mapping[str, Any]) -> Tuple[Mapping[str, Optional[str]], ...]:
     found = []
-    values = (
-        list(item.get("repositories", [])) if isinstance(item.get("repositories"), list) else []
-    )
+    raw_repositories = item.get("repositories")
+    if raw_repositories is not None and not isinstance(raw_repositories, list):
+        raise ValueError("Environment repositories must be an array")
+    values = list(raw_repositories or [])
+
+    # Current Desktop exposes two read shapes:
+    # - detailed configs: repositories[].repository_id / repositoryId
+    # - catalog cache: repository_ids[] / repositoryIds[]
+    # Preserve both as explicit associations instead of degrading them to
+    # environment-name hints.
+    for key in ("repository_ids", "repositoryIds"):
+        raw_ids = item.get(key)
+        if raw_ids is None:
+            continue
+        if not isinstance(raw_ids, list):
+            raise ValueError("Environment repository IDs must be an array")
+        for identifier in raw_ids:
+            normalized = _repository_identifier(identifier)
+            if normalized is None:
+                raise ValueError("Environment repository ID is invalid")
+            values.append({"repository_id": normalized})
+
+    # Legacy/native client shapes may expose a list of repo IDs plus a map with
+    # canonical GitHub names. This is still explicit provider evidence.
+    raw_repos = item.get("repos")
+    repo_map = item.get("repo_map")
+    if raw_repos is not None:
+        if not isinstance(raw_repos, list):
+            raise ValueError("Environment repos must be an array")
+        if repo_map is not None and not isinstance(repo_map, dict):
+            raise ValueError("Environment repo_map must be an object")
+        for identifier in raw_repos:
+            normalized = _repository_identifier(identifier)
+            if normalized is None:
+                raise ValueError("Environment repo ID is invalid")
+            mapped = repo_map.get(identifier) if isinstance(repo_map, dict) else None
+            if mapped is None and isinstance(repo_map, dict):
+                mapped = repo_map.get(normalized)
+            if mapped is not None and not isinstance(mapped, dict):
+                raise ValueError("Environment repo_map entry must be an object")
+            values.append(
+                {
+                    "repository_id": normalized,
+                    "repository_full_name": (
+                        mapped.get("repository_full_name") if isinstance(mapped, dict) else None
+                    ),
+                }
+            )
+
     values.append(item.get("repository"))
     values.append(
         {
@@ -134,12 +187,16 @@ def _associations(item: Mapping[str, Any]) -> Tuple[Mapping[str, Optional[str]],
                 or value.get("name_with_owner")
                 or value.get("repository_full_name")
             )
-            identifier = value.get("repository_id") or value.get("id")
-            identifier = (
-                str(identifier)
-                if isinstance(identifier, (str, int)) and not isinstance(identifier, bool)
-                else None
+            raw_identifier = (
+                value.get("repository_id")
+                if value.get("repository_id") is not None
+                else value.get("repositoryId")
+                if value.get("repositoryId") is not None
+                else value.get("id")
             )
+            identifier = _repository_identifier(raw_identifier)
+            if raw_identifier is not None and identifier is None:
+                raise ValueError("Environment repository ID is invalid")
             if (
                 not name
                 and isinstance(value.get("owner"), str)
@@ -185,7 +242,14 @@ def parse_environment(
         state = "published"
     if state not in {"draft", "published"}:
         state = "unknown"
-    version = item.get("configuration_version") or item.get("version")
+    version = (
+        item.get("configuration_version")
+        or item.get("version")
+        or item.get("version_revision")
+        or item.get("versionRevision")
+        or item.get("version_id")
+        or item.get("versionId")
+    )
     if not isinstance(version, (str, int)) or isinstance(version, bool):
         version = None
     observed_account = item.get("account") if isinstance(item.get("account"), str) else None

@@ -135,6 +135,22 @@ class McpIntegrationTests(unittest.TestCase):
 
         self.interact(action)
 
+    def test_current_find_exposes_repository_counterpart_contract(self):
+        async def action(session, initialization):
+            result = await session.call_tool(
+                "find_current_environments", {"repository": "fixtures/demo"}
+            )
+            self.assertFalse(result.isError)
+            counterpart = result.structuredContent["repository_counterpart"]
+            self.assertEqual(counterpart["status"], "verified")
+            self.assertTrue(counterpart["cloud_environment_verified"])
+            self.assertEqual(
+                counterpart["verified_matches"][0]["matching_basis"],
+                "repository_name",
+            )
+
+        self.interact(action)
+
     def test_required_repository_id_and_names_are_validated(self):
         async def action(session, initialization):
             for name, args in [

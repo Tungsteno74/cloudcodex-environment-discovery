@@ -1,4 +1,4 @@
 interface:
   display_name: "Current Cloud Discovery"
-  short_description: "Discover Current Codex Cloud"
-  default_prompt: "Use $current-discovery to discover current-generation Codex Cloud configurations across user/workspace scopes; distinguish drafts and fail closed on authorization errors."
+  short_description: "Current Cloud: live access pending"
+  default_prompt: "Use $current-discovery read-only for Current Cloud. Status: implemented but live catalog and ID lookup awaiting authorized OpenAI access (HTTP 401/403 observed); report blocked rather than empty. For a known Configuration ID try the approved point GET before catalog enumeration, stop on 401/403, and never imply point success establishes catalog completeness. Preserve draft/scope distinctions."

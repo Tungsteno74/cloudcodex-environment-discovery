@@ -71,3 +71,98 @@ Read AGENTS.md and the actual Git status first. Reuse the current repository and
 - Reproduced and fixed native selector failure when the initial selection was already the last environment; Home anchoring preserves full visible-row traversal without task mutation keys.
 - Browser ownership checks now forbid reads/closure of reused or unidentified sessions. The prior Current 403 was not retried.
 - Final local validation: 224 core and 238 core+SDK tests, zero skips. Fresh Legacy CLI and SDK reads returned two real IDs plus 33 owned repositories. See the final section of VALIDATION_0.4.0.md for measured timings and coverage.
+
+## Icon source decision - 12 October 2026
+
+- Confirmed user instruction: reuse the original Windows Bootstrap cloud and replace only the Windows emblem with a magnifier. Earlier independently generated white-cloud/blue-disc icons were rejected. Work directly in the local repository before any further distribution.
+- Original asset: plugins/cloudcodex-windows-bootstrap/assets/icon.png; Git blob 90f40edf8326fa3f6aab967af186badd17f86dff. The Bootstrap source repository/icon is not modified.
+- Observed local change: assets/icon.png is derived from that exact source. The complete original alpha channel and every pixel outside the central edit rectangle are identical. Behind the removed emblem, the obscured cloud fill/highlight bands are reconstructed; they are not claimed to be original hidden pixels.
+- Both plugin manifests register logo and composerIcon against the new asset. Rebuild procedure and source/image integrity checks are recorded in tools/build_discovery_icon.py and assets/icon-origin.json.
+- Status: local artwork candidate, not yet visually accepted by the user and not published or installed over the official v0.4.0. No runtime/provider, skill, MCP or authorization behavior changes.
+
+
+## v0.4.1 Current repository discovery findings
+
+- Revisited the original 10 October architecture note before implementation. The plugin continues to follow its core rules: Current `environment-configs` is authoritative when available, Codex Tasks is auxiliary, 401/403 stops the Current Cloud path, and GitHub evidence is independent and must be reconciled rather than promoted to a Cloud ID.
+- Corrected the v0.4.0 orchestration error where an explicitly requested GitHub inventory could be suppressed by a terminal Current Cloud status. Only cancellation/whole-operation timeout prevents the independent read from starting.
+- Inspected installed Codex Desktop 26.1007.2314.0. Current cache/catalog records expose `repository_ids[]`; detailed configurations expose `repositories[].repository_id`, normalized client-side as `repositoryId`. The client uses `environmentConfigs.catalog()`, `refreshCatalog()`, and detailed GET-by-`configId`.
+- No dedicated Current by-repository HTTP endpoint was observed. Legacy still has the explicit `/wham/environments/by-repo/...` route; Current counterpart verification instead joins verified GitHub repository IDs to explicit repository IDs in observed configuration rows.
+- Updated parser compatibility for `repository_ids`, `repositoryIds`, `repository_id`, `repositoryId`, `repos/repo_map`, and Current version ID/revision variants. Malformed explicit IDs fail closed.
+- Live v0.4.1 acceptance on the sample repository verified GitHub repository ID 1408634524. Current remained forbidden because a fresh BrowserAct session could not be proven owned; the adapter therefore performed no catalog eval/close. Counterpart remained not_verifiable with candidate names only. No Cloud ID was fabricated and no provisioning occurred.
+
+
+## v0.4.1 browser-owned session reconciliation
+
+- Confirmed by an isolated live BrowserAct open/read-list/close probe that the open response's `browser_id` may be the alias `workbench` while the session inventory carries the actual configured `chrome_local_...` ID. `reused` describes browser reuse and must not be treated as ownership of the named session.
+- Corrected the Current BrowserAct adapter to require a unique absent-before / present-after named session matched by the actual session inventory, including cleanup after an interrupted open. The two previously leaked `cloudcodex-catalog-*` sessions were separately identified and closed; no other sessions were touched.
+- One post-fix live Current lookup actually reached the Web GET and received HTTP 403, while independently confirming GitHub ID `1408634524`. Provider reason `http_403`, `catalog_complete=false`, counterpart `not_verifiable`, `session_cleanup_confirmed=true`, and zero leaked owned sessions. No retries, identity switching or challenge handling after the denial.
+- Desktop's main-process catalog flow uses `view=picker` first, with a same-surface standard-list fallback only on HTTP 400. This picker route is Desktop-specific; Web retains its separately observed standard GET. Current live success and unpublished draft coverage remain unverified.
+
+
+## v0.4.1 picker completeness design
+
+- The installed Desktop GUI's `view=picker` returns a selection-oriented catalog. Even after exhausting picker pages, that is not sufficient proof that every published Current configuration is represented. Its provider result is therefore partial and cannot prove absence.
+- The Desktop's 400-only fallback calls the standard list. The GUI filters version revisions older than 2 for its selector, but Discovery deliberately preserves all full-list rows and versions to avoid false negatives. Complete standard user/workspace coverage can be authoritative for its requested draft policy.
+- The Web route remains standard-list only; the Desktop picker query is never silently applied to it. Tests cover complete Web/standard catalogs, partial Desktop picker-only catalogs, 400 fallback, and terminal 401/403/429.
+
+
+## 12 October 2026: Current Webcmd escalation adapter
+
+- The user requested Webcmd as an optional Current Cloud escalation route.
+- Chosen position: after optional primary and before BrowserAct, approved HTTP,
+  onboarding and snapshot. A terminal 401/403/rate-limit never triggers
+  another Cloud read source; the only allowed progression is after a
+  recoverable result.
+- Added startup-only WebcmdSettings, bounded pinned Node/entrypoint CLI,
+  preinstalled CloakBrowser and existing-profile checks, owned transient
+  session creation/cleanup, fixed original Current backend and standard GET.
+  No browser profile import, credential reads, browser installation or UI
+  challenge solving.
+- Live test using temporary approved config and Webcmd 0.8.4 on HOME:
+  returned 401 JSON, not an environment list. Provider reason http_401,
+  zero rows, one terminal stage, session_cleanup_confirmed=true, zero new
+  lingering sessions. Source and service semantics are preserved.
+- CLI profile 'default' initially reported missing; running the operator's
+  existing 'webcmd doctor' restored/connected it without importing a login.
+  The adapter itself does not run doctor or change the profile.
+- No official Current API key/authorization was obtained, and no successful
+  Current Configuration ID was recovered. No provisioning/PR/push or merge.
+
+## 12 October 2026: single Current Configuration ID research
+
+- Observed in installed Desktop 26.1007.2314.0 static code: pS builds GET /v1/environment-configs/{encodeURIComponent(configId)}. A known draftId selects /drafts/{draftId}; no draftId is currently verified, so that route was not exercised.
+- New read-only single-ID tests used the Configuration ID already documented in the 10 October architecture note. Anonymous HttpClient returned 403 text/html with cf-mitigated=challenge; Webcmd 0.8.4 on the existing isolated runtime returned 401 application/json and no record. Neither result proves the ID is nonexistent.
+- Static evidence: list, refresh and detail requests share the Desktop xS/yS authentication service, including account/user checks. An exact Configuration ID does not replace that authentication; no token or private client cache was accessed.
+- Connected Codex Tasks list returned 8 tasks without another page. Both known onboarding threads remain readable but returned no explicit Configuration ID, so they do not prove two different environments or a fresh ID association.
+- Public openai/codex cloud-client README (current main and cited revision cedb4fd...) still documents Resume/Attach only, with caller-supplied gRPC origin and identity; not a Current configuration catalog. It was inspected, not invoked.
+- Current get_environment(ID) still calls list_environments then filters; this is an observed implementation gap, not a direct-read implementation. No runtime changes were made during this research.
+- Webcmd probe cleanup confirmed zero owned sessions left and the one preexisting diagnostic session preserved. No provisioning, primary input, authentication changes, merge or publication.
+- Result: no new live Current configuration recovered. The historical note supplies one unverified-now candidate; onboarding supplies indirect evidence only. Detailed report and JSON were delivered separately, without marking history as a live catalog.
+
+## 12 October 2026: exact-ID Current GET and on-hold skill status
+
+- User explicitly requested implementing single-ID Current lookup as an
+  alternative/escalation before placing the still-usable skill on hold for
+  Current API authorization support. Never treat 401/403 as an invitation
+  to switch identity, profile, API surface or bypass a challenge.
+- Added `runtime/current/detail.py`: fixed original Current Desktop GET
+  by known safe immutable Configuration ID, single JSON record parsing,
+  exact ID/account checks and separate `point_verified` flag, not a
+  globally complete catalog. No unknown draft GET, arbitrary URL,
+  by-name or by-repository guesswork.
+- Wired Current provider, approved HTTP relay allowlist, Webcmd existing
+  owned-session reader, EscalatingProvider and `get_current_environment`
+  service. Catalog-only stages and Legacy behavior are preserved; 401/403
+  remain terminal, single success stops with catalog_complete=false.
+- Current frontmatter, agent instructions, MCP tool descriptions, manifests
+  and README explicitly say: feature **available**, Current live config
+  catalog/detail **on hold pending supported authorization**; previous
+  Current point Webcmd 401 JSON and anonymous HTTP 403 HTML remain factual
+  evidence, not success. No OpenAI fix or ETA is claimed.
+- Offline validation: 298 core and 313 core+SDK MCP tests passed, zero
+  skipped; Ruff F and package audit passed. v0.4.1 local ZIP contains
+  46 files (including current/detail.py), SHA-256
+  95db40007ea71daf6be031d0bc37c398507afe7e1a6ebddb8d2214054fe0b672.
+- No new Cloud requests, session/profile mutations, credential reads,
+  provisioning, release, merge, push or plugin publication in this phase.
+  Remain on existing feature/current-repository-discovery-v041 branch.

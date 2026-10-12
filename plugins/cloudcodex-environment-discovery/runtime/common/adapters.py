@@ -290,14 +290,32 @@ class CommandReadTransport:
 
     def __call__(self, url: str, parameters: Mapping[str, str]) -> HttpResponse:
         allowed = url == self.catalog_url
+        # Current Desktop's client exposes a read-only GET by exact configId.
+        # A single path segment is allowed only on the observed Desktop host.
+        detail_prefix = CURRENT_CATALOG_SURFACES["desktop"] + "/"
+        is_current_detail = (
+            self.cloud_type == "current"
+            and self.catalog_url == CURRENT_CATALOG_SURFACES["desktop"]
+            and url.startswith(detail_prefix)
+            and bool(re.fullmatch(
+                r"[A-Za-z0-9][A-Za-z0-9._~-]{0,255}", url[len(detail_prefix):]
+            ))
+        )
+        allowed = allowed or is_current_detail
         prefix = CATALOG_URLS["legacy"] + "/by-repo/github/"
         if self.cloud_type == "legacy" and url.startswith(prefix):
             candidate = url[len(prefix) :]
             allowed = normalize_repository(candidate) == candidate and ":" not in candidate
         if not allowed:
             raise AdapterError("unapproved_catalog_destination")
-        permitted = {"scope", "limit", "cursor", "omitDraft"}
+        if is_current_detail and parameters:
+            raise AdapterError("unapproved_catalog_query")
+        permitted = {"scope", "limit", "cursor", "omitDraft", "view"}
         if set(parameters) - permitted or not all(isinstance(v, str) for v in parameters.values()):
+            raise AdapterError("unapproved_catalog_query")
+        if "view" in parameters and (
+            self.cloud_type != "current" or parameters["view"] != "picker"
+        ):
             raise AdapterError("unapproved_catalog_query")
         result = self.client.request(
             {
