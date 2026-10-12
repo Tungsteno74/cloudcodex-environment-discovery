@@ -1,0 +1,2 @@
+# Optional MCP profile: Python >= 3.10, tested with Python 3.12.
+mcp==1.30.0

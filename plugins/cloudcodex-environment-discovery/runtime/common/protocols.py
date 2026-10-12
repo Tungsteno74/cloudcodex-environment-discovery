@@ -32,6 +32,8 @@ def _response_failure(
         status = "forbidden"
     elif code == 404:
         status = "not_found"
+    elif code == 429:
+        status = "rate_limited"
     else:
         status = "unavailable"
     return ProviderResult(

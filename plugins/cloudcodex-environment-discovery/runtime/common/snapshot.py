@@ -7,6 +7,25 @@ from typing import Any, Optional
 from .models import ProviderResult, extract_page, parse_environment
 
 
+def read_evidence_file(path: Path) -> Any:
+    """Read only explicit bounded evidence, never session/credential paths."""
+    path = Path(path)
+    names = {part.casefold() for part in path.parts}
+    if path.exists():
+        path = path.resolve(strict=True)
+        names |= {part.casefold() for part in path.parts}
+    if path.name.casefold() in {"auth.json", "credentials.json", ".env"} or ".codex" in names:
+        raise ValueError("Credential paths cannot be used as evidence")
+    maximum = 8 * 1024 * 1024
+    if path.stat().st_size > maximum:
+        raise ValueError("Evidence file exceeds size limit")
+    with path.open("rb") as stream:
+        data = stream.read(maximum + 1)
+    if len(data) > maximum:
+        raise ValueError("Evidence file exceeds size limit")
+    return json.loads(data.decode("utf-8"))
+
+
 class SnapshotEnvironmentProvider:
     """Read-only imported evidence; never claims to be live or complete."""
 
@@ -23,17 +42,7 @@ class SnapshotEnvironmentProvider:
     def from_file(
         cls, cloud_type: str, path: Path
     ) -> "SnapshotEnvironmentProvider":
-        # The CLI opts into catalog snapshots explicitly, never credential files.
-        parts = {part.casefold() for part in path.parts}
-        if (path.name.casefold() in {"auth.json", "credentials.json", ".env"}
-                or ".codex" in parts):
-            raise ValueError("credential paths cannot be used as catalogs")
-        if path.stat().st_size > 8 * 1024 * 1024:
-            raise ValueError("catalog snapshot exceeds size limit")
-        return cls(
-            cloud_type=cloud_type,
-            payload=json.loads(path.read_text(encoding="utf-8")),
-        )
+        return cls(cloud_type=cloud_type, payload=read_evidence_file(path))
 
     def list_environments(
         self, account: Optional[str] = None, include_drafts: bool = False
@@ -43,7 +52,8 @@ class SnapshotEnvironmentProvider:
             parsed = [
                 parse_environment(
                     item, self.name, "imported", self._source,
-                    evidence="imported", account=account
+                    evidence="imported", account=None,
+                    observed_at=self._payload.get("observed_at") if isinstance(self._payload, dict) else None
                 )
                 for item in entries
             ]

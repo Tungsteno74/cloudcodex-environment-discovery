@@ -1,18 +1,21 @@
-# Implementation status — v0.2.1 (preview)
+# Implementation status — v0.4.0 preview
 
-| Component | Source implemented | Live E2E |
+| Capability | Implemented | Actual validation |
 |---|---|---|
-| Direct Legacy skill | Yes | Requires installation and authorized Legacy integration |
-| Direct Current skill | Yes | Requires installation and authorized Current integration |
-| Mandatory Root dispatch skill | **None** | Not applicable |
-| Default MCP server registration | **None** (root `mcp.json` absent) | Skills and CLI need no MCP process |
-| Optional domain-specific MCP tools (4+4) | Yes, opt-in only | Offline protocol/dispatch tests; no skill dependency |
-| Legacy provider + Legacy tests | Yes | TUI selector/authorized transport not attached |
-| Current provider + Current tests | Yes | Authorized catalog transport not attached |
-| Domain-neutral common types/resolver | Yes | Offline tests |
-| Root automatic skill choice | Manifest hints available | Model routing not guaranteed |
-| Credential Broker/provisioning | Outside plugin | Not part of scope |
+| Independent Legacy/Current skills | Yes | No mandatory Root dispatcher |
+| Legacy native screen-only reader | Yes | Two actual existing IDs, repeatable through CLI and optional MCP |
+| Legacy account-wide completeness/publication state | Not attested by UI | Returned as unknown/incomplete, not guessed |
+| Full owned GitHub inventory and correlation | Yes | 33 repositories read; name match preserved as a hint |
+| Current BrowserAct web GET adapter | Yes | Actual 403 HTML; terminal failure, session closed |
+| Current Desktop approved GET host | Yes | No connected direct host validated |
+| Current successful catalog and unpublished drafts | Not verified live | Still blocked; no bypass or creation attempted |
+| Optional MCP SDK server | Yes | Existing eight tools; optional list correlation argument |
+| Provisioning/Credential Broker | Excluded | No implementation or live writes in discovery |
 
-The source plugin and Git-backed marketplace registration remain separate. Marketplace PR is deliberately draft pending live acceptance. Current integration remains viable if Legacy is retired. No task/environment creation or login credential extraction is performed by discovery.
+The major change from v0.3.1 is that Legacy is no longer a callback-only integration: it actually returns a live observed list on the reference machine. Current still does not return a usable live list, despite having a concrete tested browser transport. Neither result changes authorization automatically.
 
-See README.md, docs/MIGRATION_0.2.0.md and docs/MCP_OPTIONAL.md.
+The screen reader uses ordinary TUI input/output and never reads the private logs/session stores targeted by the older refused attempt. That historic refusal is preserved in Project Memory, not rerouted.
+
+Code and machine-local read configuration are ready for the existing source branch. The local config is outside the repository; default distributed settings are disabled. MCP remains optional and skills are not automatically installed into ChatGPT Chat by a GitHub release.
+
+See OPERATIONS_0.4.0.md and VALIDATION_0.4.0.md for exact commands, evidence, cleanup and limits. Stable main and the marketplace PR remain separate from this preview until promotion is explicitly appropriate.

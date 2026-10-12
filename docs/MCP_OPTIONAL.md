@@ -1,46 +1,76 @@
-# Optional MCP adapter — manual opt-in
+# Optional MCP server — v0.3.0 SDK profile
 
-## Default installation: skills without a server
+## Independence from skills and CLI
 
-CloudCodeX Environment Discovery is a **skills-first plugin**. Its standard package includes two directly discoverable skills, `legacy-discovery` and `current-discovery`, and their shared reference contracts.
+The default package contains **no root `mcp.json`**. Neither of the two domain skills nor the Python CLI requires an MCP process. The opt-in registration template remains `optional/mcp.json`.
 
-The standard package intentionally has **no root `mcp.json`**. Installing the skill package does not launch `runtime/server.py`, require a local MCP connection, or make a Python server process a prerequisite for skill discovery. The Root uses already-connected, authorized tools or explicitly invoked CLI operations whenever available.
+The previous handwritten JSON-RPC loop has been replaced by the **official MCP Python SDK**, pinned to `mcp==1.30.0` in `optional/requirements-mcp.txt`. The core remains Python 3.9+ with standard-library dependencies. The optional server requires Python **3.10+**, and is tested with Python 3.12.
 
-The Python providers and read-only CLI remain reusable, but do not automatically inherit ChatGPT/Codex authentication. Missing authorized transports must be reported as **unavailable**, never as a verified empty catalog.
+## Start only with explicit operator configuration
 
-## Optional adapter
+Select an interpreter of the supported version, preferably in a dedicated virtual environment, then install:
 
-The code for the eight provider-specific read-only MCP tools is retained in:
+```sh
+python -m pip install -r plugins/cloudcodex-environment-discovery/optional/requirements-mcp.txt
+```
 
-`plugins/cloudcodex-environment-discovery/runtime/server.py`
+Configure a compatible MCP client to execute that interpreter with:
 
-An opt-in server configuration is stored at:
+```text
+<absolute-plugin-root>/runtime/server.py --config <absolute-operator-config.json>
+```
 
-`plugins/cloudcodex-environment-discovery/optional/mcp.json`
+Use `optional/mcp.json` as a template. Set its interpreter and `--config` arguments according to the real host; do not assume the current shell's `python` is the same interpreter used by the MCP client. If the local client discovers MCP through root `mcp.json`, explicitly copy the template in that **local installed copy** only. Do not commit a root MCP registration to this repository.
 
-That nested file is **not** the plugin's standard MCP entry point. It is provided solely as a template for an explicitly requested integration.
+Only **stdio** is implemented and advertised for this package. There is no unauthenticated remote HTTP listener. Publishing a GitHub release does not attach a local stdio process or install skills into ChatGPT Chat.
 
-## Enable it when useful
+## Implemented server profile
 
-For a **local host that explicitly supports stdio MCP**:
+- Standard SDK initialization, protocol negotiation and initialized notification.
+- Eight tools: list/find/get/resolve independently for Legacy and Current.
+- Strict input schemas with no `cloud_type=all`, command, URL, credential or configuration-path arguments.
+- Read-only, non-destructive, idempotent annotations.
+- Structured output with explicit completeness, provenance and per-stage attempts.
+- `isError=true` for unavailable/denied/invalid/deadline outcomes, rather than successful empty results.
+- Sanitized validation and runtime errors; raw host output is not exposed.
+- Progress notifications for escalation stages when the caller supplies a progress token.
+- SDK cancellation propagated into the read operation; adapter child processes are bounded and terminated on cancellation/timeout.
+- One whole-operation deadline plus bounded per-host execution/output.
+- Reusable operator-configured runtime and lazy provider selection.
+- Normal stdio closure handled by the SDK. Core result size is bounded before transmission.
 
-1. Install Python 3.9+ and make sure the complete plugin directory is available to the host.
-2. Choose the host's supported, authorized MCP installation mechanism. Point it to `runtime/server.py` using the verified paths and working directory for that host. The included `optional/mcp.json` may be used as a template.
-3. If the host uses the Agent Plugins root `mcp.json` discovery convention and the user explicitly wants the MCP server enabled, copy `optional/mcp.json` to the package root `mcp.json` in that host's **local installed copy**, then reload the host. Do not commit the copied root file to the canonical source.
-4. Check tool registration (`list_legacy_environments`, `list_current_environments`, and their find/get/resolve counterparts), then run a harmless read-only test.
-5. An **authorized provider/transport** is independently required for live catalog access; installing the optional MCP process does not grant access to Codex Cloud.
+The supported protocol versions are those of the pinned SDK. The tested session negotiated `2025-11-25`; the server no longer simply echoes an arbitrary client version.
 
-To disable the integration, remove the local MCP registration (or the manually copied root config) and reload the host. The skills continue to work without it.
+Resources, prompts, task-augmented execution, credential-broker methods, environment creation and remote HTTP hosting are **not advertised capabilities** of this server.
 
-## Security and scope
+## Authorization remains separate
 
-- The optional MCP adapter is **not** a Credential Broker.
-- It never searches `auth.json`, cookies, browser sessions or secrets.
-- It never creates Cloud tasks or environments and cannot bypass HTTP 401/403.
-- Its absence is not a failure of the two independent skills.
-- ChatGPT web/mobile does not automatically attach local stdio MCP tools when a GitHub plugin or marketplace entry is installed.
-- This is an opt-in integration. Its source and tests remain available even while the default install is skill-only.
+The server uses the exact same `DiscoveryRuntime` as the CLI. An approved catalog host is still required for live reads. Starting MCP does not sign into Codex Cloud, acquire OAuth scopes, unwrap stored tokens or bypass a security interstitial. With no configured source, the tools return an explicit unavailable result and diagnostic trace.
 
-## Verification
+The native-session adapter attempted during this implementation was blocked by a tool safety control and is not included. The server tests therefore do not imply that the actual OpenAI catalogs were reached.
 
-`python -X utf8 tools/validate.py` verifies the two skills, the absence of root `mcp.json`, the opt-in template, the provider code and the optional MCP protocol tests. `python -X utf8 tools/build_release.py` builds the standalone archive without automatically enabling MCP.
+## Test profiles
+
+```sh
+python -X utf8 tools/validate.py
+python -X utf8 tools/validate.py --with-mcp
+```
+
+The first command runs the dependency-free core. The second requires the SDK and runs real stdio server/client tests, including all eight calls, invalid arguments, denied/empty catalogs, progress, timeout and cancellation. It fails if the SDK is missing or integration tests are skipped.
+
+The backend catalogs in these tests are simulated host fixtures. This is a genuine MCP protocol/integration test, **not live provider authentication verification**.
+
+## References
+
+- MCP Python SDK: https://github.com/modelcontextprotocol/python-sdk
+- MCP lifecycle: https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle
+- MCP stdio transport: https://modelcontextprotocol.io/specification/2025-11-25/basic/transports
+- MCP tools: https://modelcontextprotocol.io/specification/2025-11-25/server/tools
+
+## v0.3.1 compatibility
+
+The SDK pin, stdio profile and eight tool names are unchanged. Optional GitHub repository evidence and onboarding hints use the same configured services as CLI. Tools do not accept the GitHub executable, integrity hash, export path or consent flags; these remain operator startup settings. A new real SDK integration test confirms that an onboarding task with no Configuration ID stays non-resolvable.
+
+## v0.4.0 live native integration
+
+The SDK dependency and eight tool names are unchanged. List tools optionally accept correlate_github. The real list_legacy_environments call now returned two actual native IDs plus a 33-repository correlation through the configured screen-only adapter. Current's production browser route returned 403; this is not hidden by the server. Native dependencies are separately optional and MCP is still not a prerequisite for CLI/skills. See VALIDATION_0.4.0.md.

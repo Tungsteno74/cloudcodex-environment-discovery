@@ -10,7 +10,7 @@ RUNTIME = ROOT / "plugins/cloudcodex-environment-discovery/runtime"
 sys.path.insert(0, str(RUNTIME))
 
 from common.models import EnvironmentDescriptor, HttpResponse, ProviderResult  # noqa: E402
-from legacy.api import build_legacy_service, build_legacy_snapshot_service  # noqa: E402
+from legacy.api import build_legacy_service  # noqa: E402
 from legacy.provider import LegacyEnvironmentProvider  # noqa: E402
 
 
@@ -170,6 +170,25 @@ class LegacyProviderTests(unittest.TestCase):
             "unverified",
         )
 
+
+
+class LegacyRepositoryLookupTests(unittest.TestCase):
+    def test_by_repo_route_proves_association_even_when_label_differs(self):
+        urls=[]
+        def request(url, parameters):
+            urls.append(url)
+            return HttpResponse(200, {"environments": [{"id": "scoped", "label": "A different label"}]})
+        result=build_legacy_service(LegacyEnvironmentProvider(transport=request)).resolve_environment(repository="Owner/Repo")
+        self.assertEqual(result["status"], "resolved")
+        self.assertEqual(result["selected"]["repository"], "owner/repo")
+        self.assertEqual(urls, ["https://chatgpt.com/backend-api/wham/environments/by-repo/github/owner/repo"])
+
+    def test_by_repo_conflicting_association_is_not_accepted(self):
+        provider=LegacyEnvironmentProvider(transport=lambda u,p: HttpResponse(200, {"items": [
+            {"id": "wrong", "repository": "somewhere/else"}]}))
+        result=provider.find_environments("owner/repo")
+        self.assertFalse(result.catalog_complete)
+        self.assertEqual(result.status, "invalid_response")
 
 if __name__ == "__main__":
     unittest.main()

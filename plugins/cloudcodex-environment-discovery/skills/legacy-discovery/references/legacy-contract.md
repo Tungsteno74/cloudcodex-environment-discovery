@@ -1,17 +1,42 @@
-# Legacy discovery contract
+# Legacy discovery execution contract — v0.4.0
 
-This skill exclusively handles Legacy hosted Codex Cloud.
+Only existing Legacy environments are read. No Current lookup, task creation, environment publishing or provisioning belongs to this skill.
 
-Preferred source: authenticated native **codex cloud** environment selector, including zero-task environments. **codex cloud list --json lists TASKS** and cannot replace the environment catalog.
+## Native first stage
 
-Use only authorized native client evidence, or an explicitly authorized read-only GET /backend-api/wham/environments adapter.
+`kind: native_cli`, explicit `approved: true`, and `native` settings:
 
-Connected local MCP names:
-- list_legacy_environments(account?, include_drafts?)
-- find_legacy_environments(repository, account?, include_drafts?)
-- get_legacy_environment(environment_id, account?)
-- resolve_legacy_environment(repository?, name?, account?, include_drafts?)
+- `executable`: absolute reviewed native codex/codex.exe path, not a .cmd launcher.
+- `sha256`: verified executable digest.
+- `max_pages`: traversal bound, default50, range1–100.
 
-Implementation is runtime/legacy/provider.py; independent tests are tests/test_legacy.py. Shared types and matching rules are in runtime/common. Current Cloud need not load Legacy and does not require it to pass tests.
+The tested screen contract is Codex CLI 0.162.0. Native terminal dependencies are in `optional/requirements-native.txt`; live Windows checks used Python3.12. Core parsing/tests require no MCP.
 
-A live immutable ID and complete relevant catalog are necessary for an automatic selection. Cached or imported catalog records are candidates. Stop on 401/403 and never auto-create a Cloud task merely to discover IDs.
+The reader invokes ordinary `codex cloud` in an isolated non-repository working directory. It renders completed terminal frames, opens the environment selector using `o`, and enumerates rows with End/Home/PageDown. It never sends Enter/New Task/Apply. Only the rendered selector is parsed; files/logs/authentication stores/process memory are not read. It closes its own PTY and removes native-created temporary files unread.
+
+This accepted screen-only implementation is **different from the previously refused log/session reader**. Preserve that historical refusal; do not revive the old mechanism.
+
+## Result semantics
+
+Each parsed row contains a real native ID, label and, only when explicitly displayed as a separate native hint, repository association. A label that happens to equal owner/repo does not establish an association.
+
+The native result is `partial` with `catalog_complete=false`; `provider.coverage.visible_rows_complete` independently records full visible traversal. The UI supplies neither account-identity proof nor a guarantee of API-wide completeness/draft status. Empty/filtered/truncated or changed layouts must not become a verified empty account catalog.
+
+## Authorized API host alternatives
+
+`primary` is an alternative first-stage host, not an obligatory prerequisite for native CLI. A configured `http` host may follow a partial native result only when already authorized and not blocked by a terminal denial.
+
+Allowed Legacy GETs:
+
+- `/backend-api/wham/environments`.
+- `/backend-api/wham/environments/by-repo/github/{owner}/{repo}`.
+
+By-repository responses can prove association; names alone cannot. The plugin does not acquire tokens. Operator host commands and scripts are fixed/hash-pinned at startup; arbitrary commands and URLs are not tool inputs.
+
+## GitHub correlation and optional MCP
+
+`list --correlate-github` enumerates all owned GitHub repositories through native gh pagination and joins them to actual environment rows. ID/explicit association yields a verified join; names yield hints. GitHub success never manufactures missing Environment IDs or changes Cloud completeness.
+
+MCP list/find/get/resolve names remain `list_legacy_environments`, `find_legacy_environments`, `get_legacy_environment`, `resolve_legacy_environment`. The list operation optionally accepts `correlate_github`. MCP is not required to run the CLI or skill.
+
+Stop escalation on 401/403, rate limiting, identity/integrity conflicts, unapproved CONFIRM stages, cancellation and deadlines. No account switching, challenge bypass or provisioning fallback. Return candidates when coverage/identity is insufficient for automatic selection.

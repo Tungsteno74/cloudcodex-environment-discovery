@@ -1,28 +1,48 @@
 ---
 name: legacy-discovery
-description: Discover and resolve existing Codex Cloud LEGACY environments before any task is created. Use for Legacy environment IDs, old Codex Cloud selector, zero-task environments and Legacy GitHub repository associations. Do not use for current-generation Cloud configs.
+description: Read existing Codex Cloud LEGACY environments before task creation. Use the implemented isolated native CLI selector or an approved read-only API host; return real IDs, coverage and optional GitHub correlations. Not for Current configs or provisioning.
 ---
 
-# Codex Cloud Legacy environment discovery
+# Legacy discovery — direct Root entry point
 
-Scope: LEGACY only. This skill is directly discoverable by ChatGPT Root. **No custom MCP server is required**; use authorized native Root/CLI tools, and use the optional MCP adapter only after explicit activation. It needs no coordinating Root skill, running Child, Cloud task or Windows Bootstrap.
+This skill requires neither a coordinating Root skill, a running Child, Windows Bootstrap nor MCP. Its only target is **reading existing environments**. Do not create tasks, environments or publication actions as discovery probes.
 
-## Procedure
+## Choose the implemented read path
 
-1. Determine the requested repository, account, environment ID or name. Without a repository, list the Legacy catalog rather than inferring GitHub associations from environment labels.
-2. Prefer the authenticated native **codex cloud** selector, including its **o: Set Env** operation, when available through an authorized interactive terminal. It has enumerated Legacy environments with zero tasks. **codex cloud list --json enumerates tasks, not environments.**
-3. Read only legitimate selector catalog evidence. Capture immutable ID, label, explicit GitHub association and observation time. A visible name without immutable ID is a candidate, not verified.
-4. If the Root has a connected authorized Legacy catalog client, a controlled GET /backend-api/wham/environments is an optional version-sensitive fallback. Never extract auth.json, cookies or tokens. Stop on 401/403.
-5. For a compatible connected local MCP runtime, call **list_legacy_environments**, **find_legacy_environments**, **get_legacy_environment** or **resolve_legacy_environment**. The packaged runtime has no credential acquisition and no default interactive selector reader; without authorized injection it returns unavailable.
-6. Match repository ID first, then explicit owner/repo association. Environment-label similarity is a hint only. One repository can have multiple environments.
-7. Resolve only a single **live verified** environment with complete requested Legacy coverage. Otherwise return candidates, catalog_complete=false, provenance and exact missing capability.
-8. Return a normalized EnvironmentDescriptor to Root. Cloud task creation, provisioning and Windows Bootstrap are separate later operations.
+1. Resolve the installed plugin/source path and the operator's approved discovery configuration. Read `references/legacy-contract.md`. Do not search credential stores.
+2. Prefer `native_cli` when the reviewed, hash-pinned native Codex 0.162.0 executable and optional terminal dependencies are available. This is an implemented screen-only reader, not the earlier refused log/session extraction proposal.
+3. Invoke the CLI through an authorized local executor such as RDC:
 
-## Invariants
+```text
+python <plugin-root>/runtime/cli.py legacy list --config <operator-config.json> --pretty
+python <plugin-root>/runtime/cli.py legacy list --config <operator-config.json> --correlate-github --pretty
+python <plugin-root>/runtime/cli.py legacy find --repository owner/repo --config <operator-config.json>
+```
 
-- Read-only. No task creation, GitHub writes, configuration mutation or privilege escalation.
-- Codex Tasks.list_environments is NOT the full hosted Cloud catalog. Empty, partial, stale, unauthorized and unavailable are different.
-- This skill does not invoke the current Cloud provider. Root may independently invoke **legacy-discovery** and **current-discovery** for explicit requests concerning both generations.
-- No security challenge bypass or conjectural immutable IDs.
+The native adapter opens a separate terminal, sends only standard selector/navigation actions, and reads the ordinary rendered environment list. It does not control the user's primary mouse/keyboard or read private logs, tokens, cookies, profile files or process memory. `codex cloud list --json` still lists **tasks**, not environments.
 
-See references/legacy-contract.md for Legacy evidence and error semantics.
+## Coverage and identity
+
+A live native result can contain real IDs with `status=partial` and `catalog_complete=false`. Inspect `provider.coverage.visible_rows_complete`: it states whether all visible picker rows were traversed. The selector does not attest the exact account identity, API-wide completeness or draft/publication state, so these must remain unknown. Never reinterpret a visual empty list as proof that the account has no environments.
+
+The reader is version-gated, handles complete terminal frames and bounded scrolling, and closes only its own process. A changed/truncated layout, failure or cancellation must remain an explicit blocker. No Enter/New Task/Apply action is permitted.
+
+## API fallback and escalation
+
+An existing approved `primary` host is an alternative to `native_cli`; the two are not mandatory chained steps. A separately approved `http` host may query the global Legacy catalog or the validated by-repository GET route. This host must already have authorization; this plugin does not acquire or export credentials.
+
+`AUTO` runs only approved stages. `CONFIRM` returns `approval_required` rather than granting consent. On 401/403, rate limiting, account/integrity mismatch, security challenge, cancellation or deadline expiry, stop the affected sequence. No identity switching or transport retry around a denial. Imported snapshots are optional candidate evidence only.
+
+## GitHub cross-reference
+
+With GitHub enabled in operator configuration, `--correlate-github` enumerates all owned repositories using the existing native gh account and its pagination. It joins those records with actual observed environment rows. Numeric repository IDs and explicit associations outrank name matches. A matching owner/repo or short environment label remains a `name_candidate` when no association was supplied by Codex.
+
+GitHub repository existence cannot create an Environment ID. The inventory completeness refers to GitHub only and must not promote Cloud coverage. For a single repository, find/resolve retain the already-implemented verified ID lookup.
+
+## Return or optional MCP
+
+Return ID, label, source, observation time, coverage and ordered attempts. Preserve unknown account/state, multiple candidates and incomplete catalogs. Automatic resolve remains restricted to unique, fresh, live, verified identities with required coverage.
+
+When the optional MCP server is already connected, use list_legacy_environments, find_legacy_environments, get_legacy_environment or resolve_legacy_environment. The list tool supports `correlate_github: true`. Do not enable MCP simply to run this skill.
+
+This skill never invokes Current implicitly. Provisioning belongs to the separate creation plugin, not to a fallback here.

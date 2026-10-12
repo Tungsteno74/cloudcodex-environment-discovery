@@ -12,9 +12,10 @@ from .provider import LegacyEnvironmentProvider
 def build_legacy_service(
     provider: Optional[LegacyEnvironmentProvider] = None,
 ) -> EnvironmentDiscoveryService:
-    return EnvironmentDiscoveryService(
-        "legacy", provider if provider is not None else LegacyEnvironmentProvider()
-    )
+    if provider is None:
+        from common.configuration import DiscoveryRuntime
+        return DiscoveryRuntime().service("legacy")
+    return EnvironmentDiscoveryService("legacy", provider)
 
 
 def build_legacy_snapshot_service(path: Path) -> EnvironmentDiscoveryService:
