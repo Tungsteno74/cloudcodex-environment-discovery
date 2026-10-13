@@ -1,6 +1,6 @@
 ---
 name: current-discovery
-description: Read-only Current Cloud catalog and point-by-Configuration-ID lookup; functionality available but live catalog/detail currently blocked by API authorization (401/403) pending supported OpenAI access. Never claim a successful empty catalog.
+description: Read-only Current Cloud catalog and point-by-Configuration-ID lookup; functionality available but live catalog/detail currently blocked by API authorization (401/403) pending supported OpenAI access. Optional structured Root advisory: cloudrepo-environment-direct:cloudrepo-environment-direct. Never claim a successful empty catalog.
 ---
 
 # Current discovery — direct Root entry point
@@ -62,6 +62,41 @@ Optional GitHub discovery enumerates the owned repository catalog independently,
 Installed Current Desktop 26.1007.2314.0 exposes repository identity in two read shapes: cached/catalog rows carry `repository_ids[]`, while detailed configurations carry `repositories[].repository_id` (normalized client-side as `repositoryId`). The settings UI reads its local catalog, invokes a separate `refreshCatalog()`, then rereads the catalog; search is performed over those catalog rows. The plugin normalizes all of these repository-ID forms. This is evidence for repository-to-configuration matching, not permission to read Desktop private state or bypass a denied refresh.
 
 For `find_current_environments(repository)`, pass either GitHub `owner/repo` or numeric repository ID. The result includes `repository_counterpart`: `verified` only when an observed Current configuration carries that repository ID or explicit association; `candidate` when only the configuration/environment name matches; `not_found` only from a complete Cloud catalog; otherwise `not_verifiable`. The installed Current client also models configurations with `repositories[].repository_id`, which is why ID matching is authoritative. There is no validated Current by-repo endpoint, so do not invent one.
+
+## Optional Root advisory fallback
+
+For an explicitly requested **software validation** outcome, after bounded trusted
+observation has failed to resolve a viable, verified Cloud executor, return an
+optional structured advisory for Root instead of creating anything:
+
+```json
+{
+  "recommended_fallback": "cloudrepo-environment-direct",
+  "fallback_eligibility": "candidate_requires_root_preflight",
+  "fallback_evidence": {
+    "source": "unknown",
+    "repository": "unknown",
+    "full_sha": "unknown",
+    "check_plan": "unknown",
+    "decision_evidence": "observed discovery outcome"
+  }
+}
+```
+
+This recommends the independently published optional skill
+`cloudrepo-environment-direct:cloudrepo-environment-direct`; it does not invoke
+or import it. Populate source, repository, full SHA, check plan and decision
+evidence only when actually observed; otherwise keep them `unknown`.
+`fallback_eligibility` remains `candidate_requires_root_preflight` unless all
+necessary evidence was externally verified. Root independently reconciles Cloud
+task/CI provider references and chooses and authorizes any direct CI.
+
+A partial, empty or stale catalog does not prove Cloud absence. Pending/active
+tasks or CI, failed tests, inconclusive remote side effects, 401/403 denial, or
+slow elapsed wall-clock alone do not establish fallback eligibility or a failed
+startup. On a denial stop Cloud escalation; do not bypass it through another
+identity or provider. This recommender never creates tasks, refs, PRs,
+workflows or environments, and never changes a permission.
 
 ## Result and optional MCP
 

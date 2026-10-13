@@ -40,3 +40,22 @@ By-repository responses can prove association; names alone cannot. The plugin do
 MCP list/find/get/resolve names remain `list_legacy_environments`, `find_legacy_environments`, `get_legacy_environment`, `resolve_legacy_environment`. The list operation optionally accepts `correlate_github`. MCP is not required to run the CLI or skill.
 
 Stop escalation on 401/403, rate limiting, identity/integrity conflicts, unapproved CONFIRM stages, cancellation and deadlines. No account switching, challenge bypass or provisioning fallback. Return candidates when coverage/identity is insufficient for automatic selection.
+
+## Optional Root-facing software-validation advisory (v0.4.2)
+
+Only for explicit software-validation intent, after bounded trusted observation
+cannot resolve a viable, verified Cloud executor, the skill may return the
+structured advisory `recommended_fallback: cloudrepo-environment-direct`. Its
+`fallback_evidence` carries `source`, `repository`, `full_sha`, `check_plan` and
+`decision_evidence` only when observed; every other value is `unknown`.
+Default `fallback_eligibility` is `candidate_requires_root_preflight`; no
+discovery outcome authorizes direct CI. Root alone reconciles Cloud task/CI
+references and chooses/authorizes the independent
+`cloudrepo-environment-direct:cloudrepo-environment-direct` skill.
+
+Partial, empty or stale catalogs do not prove absence. Pending/active tasks or
+CI, test failure, inconclusive remote side effects, denial (401/403), and slow
+wall-clock alone do not establish eligibility or failed startup. A denial still
+stops Cloud escalation and is never bypassed through another identity/provider.
+The advisory never creates tasks, refs, PRs, workflows or environments, nor
+changes permissions.

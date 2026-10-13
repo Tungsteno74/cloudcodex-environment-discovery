@@ -1,6 +1,6 @@
 ---
 name: legacy-discovery
-description: Read existing Codex Cloud LEGACY environments before task creation. Use the implemented isolated native CLI selector or an approved read-only API host; return real IDs, coverage and optional GitHub correlations. Not for Current configs or provisioning.
+description: Read existing Codex Cloud LEGACY environments before task creation. Use the implemented isolated native CLI selector or an approved read-only API host; return real IDs, coverage and optional GitHub correlations. Optional structured Root advisory: cloudrepo-environment-direct:cloudrepo-environment-direct. Not for Current configs or provisioning.
 ---
 
 # Legacy discovery — direct Root entry point
@@ -38,6 +38,41 @@ An existing approved `primary` host is an alternative to `native_cli`; the two a
 With GitHub enabled in operator configuration, `--correlate-github` enumerates all owned repositories using the existing native gh account and its pagination. It joins those records with actual observed environment rows. Numeric repository IDs and explicit associations outrank name matches. A matching owner/repo or short environment label remains a `name_candidate` when no association was supplied by Codex.
 
 GitHub repository existence cannot create an Environment ID. The inventory completeness refers to GitHub only and must not promote Cloud coverage. For a single repository, find/resolve retain the already-implemented verified ID lookup.
+
+## Optional Root advisory fallback
+
+For an explicitly requested **software validation** outcome, after bounded trusted
+observation has failed to resolve a viable, verified Cloud executor, return an
+optional structured advisory for Root instead of creating anything:
+
+```json
+{
+  "recommended_fallback": "cloudrepo-environment-direct",
+  "fallback_eligibility": "candidate_requires_root_preflight",
+  "fallback_evidence": {
+    "source": "unknown",
+    "repository": "unknown",
+    "full_sha": "unknown",
+    "check_plan": "unknown",
+    "decision_evidence": "observed discovery outcome"
+  }
+}
+```
+
+This recommends the independently published optional skill
+`cloudrepo-environment-direct:cloudrepo-environment-direct`; it does not invoke
+or import it. Populate source, repository, full SHA, check plan and decision
+evidence only when actually observed; otherwise keep them `unknown`.
+`fallback_eligibility` remains `candidate_requires_root_preflight` unless all
+necessary evidence was externally verified. Root independently reconciles Cloud
+task/CI provider references and chooses and authorizes any direct CI.
+
+A partial, empty or stale catalog does not prove Cloud absence. Pending/active
+tasks or CI, failed tests, inconclusive remote side effects, 401/403 denial, or
+slow elapsed wall-clock alone do not establish fallback eligibility or a failed
+startup. On a denial stop Cloud escalation; do not bypass it through another
+identity or provider. This recommender never creates tasks, refs, PRs,
+workflows or environments, and never changes a permission.
 
 ## Return or optional MCP
 

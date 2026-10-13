@@ -1,8 +1,8 @@
 {
     "$schema":  "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
     "name":  "cloudcodex-environment-discovery",
-    "version":  "0.4.1",
-    "description":  "Read-only independent Codex Legacy and Current discovery. Current direct Configuration-ID GET available; Current live catalog and detail currently blocked by backend authentication and awaiting supported access.",
+    "version":  "0.4.2",
+    "description":  "Read-only independent Codex Legacy and Current discovery. Optional structured Root advisory to cloudrepo-environment-direct; no direct CI execution. Current live catalog/detail await supported access.",
     "author":  {
                    "name":  "Tungsteno74"
                },
@@ -11,7 +11,7 @@
                                           "interface":  {
                                                             "displayName":  "CloudCodeX Environment Discovery",
                                                             "shortDescription":  "Read-only Cloud discovery",
-                                                            "longDescription":  "Read-only discovery of existing Codex Cloud environments. Legacy discovery operational. Current catalog and exact Configuration-ID GET implemented, but Current live reads remain on hold awaiting supported authorized API access (401 JSON/403 challenge observed). GitHub and onboarding candidates remain indirect. Independent skills, optional MCP, no provisioning or credential extraction.",
+                                                            "longDescription":  "Read-only discovery of existing Codex Cloud environments. Legacy discovery operational. Current catalog and exact Configuration-ID GET implemented, but Current live reads remain on hold awaiting supported authorized API access (401 JSON/403 challenge observed). Optional structured Root advisory may recommend cloudrepo-environment-direct for software validation after bounded observation; it never executes CI. Independent skills, optional MCP, no provisioning or credential extraction.",
                                                             "developerName":  "Tungsteno74",
                                                             "category":  "Developer Tools",
                                                             "capabilities":  [
@@ -20,7 +20,7 @@
                                                                                  "Verified repository matching",
                                                                                  "Optional local MCP tools"
                                                                              ],
-                                                            "defaultPrompt":  "Determine the requested Codex Cloud type first. For Legacy invoke $legacy-discovery; for current-generation Cloud invoke $current-discovery. If both are explicitly requested, invoke the two skills separately and report separate provider statuses; do not produce an implicit mixed catalog. Read-only: no task or environment creation. On Current 401/403 report the actual denial and mark live Current discovery pending; never infer an empty catalog or switch identities.",
+                                                            "defaultPrompt":  "Determine the requested Codex Cloud type first. For Legacy invoke $legacy-discovery; for current-generation Cloud invoke $current-discovery. If both are explicitly requested, invoke the two skills separately and report separate provider statuses; do not produce an implicit mixed catalog. Read-only: no task or environment creation. For software validation only, unresolved executor evidence may produce the optional structured recommendation cloudrepo-environment-direct; Root alone preflights and authorizes direct CI. On Current 401/403 report the actual denial and mark live Current discovery pending; never infer an empty catalog or switch identities.",
                                                             "logo":  "./assets/icon.png",
                                                             "composerIcon":  "./assets/icon.png"
                                                         },

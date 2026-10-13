@@ -89,3 +89,22 @@ As of 12 October 2026, live Current point and catalog reads are still blocked
 challenge). **The Current skill is usable but its expected live IDs remain
 pending supported authorized access.** This is not an OpenAI commitment to
 a fix date. Draft reads for unknown IDs and new environments are not attempted.
+
+## Optional Root-facing software-validation advisory (v0.4.2)
+
+Only for explicit software-validation intent, after bounded trusted observation
+cannot resolve a viable, verified Cloud executor, the skill may return the
+structured advisory `recommended_fallback: cloudrepo-environment-direct`. Its
+`fallback_evidence` carries `source`, `repository`, `full_sha`, `check_plan` and
+`decision_evidence` only when observed; every other value is `unknown`.
+Default `fallback_eligibility` is `candidate_requires_root_preflight`; no
+discovery outcome authorizes direct CI. Root alone reconciles Cloud task/CI
+references and chooses/authorizes the independent
+`cloudrepo-environment-direct:cloudrepo-environment-direct` skill.
+
+Partial, empty or stale catalogs do not prove absence. Pending/active tasks or
+CI, test failure, inconclusive remote side effects, denial (401/403), and slow
+wall-clock alone do not establish eligibility or failed startup. A denial still
+stops Cloud escalation and is never bypassed through another identity/provider.
+The advisory never creates tasks, refs, PRs, workflows or environments, nor
+changes permissions.
