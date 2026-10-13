@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.2 - Optional Root-facing CloudRepo Direct advisory
+
+- Added an optional structured advisory in both independently callable skills
+  for explicit software-validation requests after bounded trusted observation
+  cannot resolve a viable, verified Cloud executor. The advisory names
+  `cloudrepo-environment-direct` and retains source, repository, full SHA,
+  check-plan and decision evidence as unknown unless actually observed.
+- Preserved Root preflight and authorization: `fallback_eligibility` defaults to
+  `candidate_requires_root_preflight`; this package neither imports the other
+  plugin nor executes CI, creates Cloud tasks/refs/PRs/workflows/environments,
+  or changes permissions.
+- Documented guards: incomplete catalogs, pending work, failed tests,
+  inconclusive side effects, 401/403 and elapsed time alone do not prove Cloud
+  absence, eligibility or failed startup; denial still stops Cloud escalation.
+
 ## 0.4.1 - Independent GitHub fallback and Current repository counterpart
 
 - Implemented Current direct lookup by known immutable Configuration ID (`GET /v1/environment-configs/{configId}`) on approved Webcmd and Desktop HTTP transports. Safe URL-only single segment, strict 200 JSON/ID/account matching, explicit `point_verified` distinct from `catalog_complete`, and no catalog enumeration requirement for point-aware providers.

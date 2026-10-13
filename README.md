@@ -86,3 +86,23 @@ python plugins/cloudcodex-environment-discovery/runtime/cli.py current get --env
 A successful 200 JSON with a matching ID verifies *one configuration*, reported as `point_verified=true` with `catalog_complete=false`; it does not prove all environments, revisions or drafts have been enumerated. For a configured catalog-only stage, `get` retains its conservative catalog matching behavior. 401/403/429 terminate Cloud escalation; no automatic browser/account switching, profile imports, credential extraction or challenge handling. Current `list/find/resolve` remain catalog-dependent and may return blockers plus independently sourced repository/onboarding hints.
 
 See [Current point-read and pending status](docs/CURRENT_POINT_LOOKUP_0.4.1.md) and [Current skill](plugins/cloudcodex-environment-discovery/skills/current-discovery/SKILL.md). No release/merge/publication is implied by the local v0.4.1 preview.
+
+## v0.4.2 — optional Root-facing direct-CI recommendation
+
+The user approved a narrowly bounded fallback recommendation to the independently
+published `cloudrepo-environment-direct` skill. This is **not** direct CI
+execution, a plugin import, an authorization grant, or a mandatory dispatcher.
+For explicit software-validation intent, each independent discovery skill may
+return `recommended_fallback: cloudrepo-environment-direct` only after bounded
+trusted observation cannot resolve a viable, verified Cloud executor. Its
+structured evidence fields are `source`, `repository`, `full_sha`, `check_plan`
+and `decision_evidence`; unknown evidence stays `unknown`.
+
+The default `fallback_eligibility` is `candidate_requires_root_preflight`. Root
+independently reconciles Cloud task/CI provider references and chooses and
+authorizes any direct CI. A partial, empty or stale catalog never proves Cloud
+absence. Pending/active tasks or CI, test failures, inconclusive remote side
+effects, 401/403 denial, and slow wall-clock alone neither establish eligibility
+nor prove a failed startup. A denial stops Cloud escalation and is not bypassed
+through another identity/provider. The recommender creates no tasks, refs, PRs,
+workflows or environments and changes no permission.

@@ -1,4 +1,4 @@
-# CloudCodeX Environment Discovery 0.4.1
+# CloudCodeX Environment Discovery 0.4.2
 
 Two independent read-only skills: legacy-discovery and current-discovery. No mandatory Root dispatcher, MCP server or provisioning operation.
 
@@ -18,3 +18,17 @@ Current repository lookup remains useful after a Cloud 401/403: an explicitly co
 ## Current v0.4.1: point GET implemented, awaiting live authorization
 
 Current `get` attempts the official Desktop-client-observed `GET /v1/environment-configs/{configId}` via an explicitly authorized Webcmd or Desktop HTTP stage. Catalog-only stages remain available where configured. Exact ID is validated and response ID/account checked; successful point proof is distinct from catalog completeness. Real Current requests are still returning 401 JSON (Webcmd) or 403 HTML (anonymous HTTP). The Current skill stays installed/usable, but live environment identification is on hold pending supported access. Do not equate authorization failure to an empty catalog, claim an OpenAI fix schedule or retry through another identity. Use `runtime/cli.py current get --environment-id <ID> --config <operator-config>`. Legacy remains unaffected.
+
+## v0.4.2: optional Root advisory only
+
+For explicit software-validation intent, either independent skill may return a
+structured recommendation for `cloudrepo-environment-direct` only after bounded
+trusted observation cannot resolve a viable, verified Cloud executor. Evidence
+fields (`source`, `repository`, `full_sha`, `check_plan`, `decision_evidence`)
+remain `unknown` unless observed. The default eligibility is
+`candidate_requires_root_preflight`; Root independently reconciles Cloud/CI
+references and decides whether to authorize direct CI. This plugin never imports
+the other plugin, executes CI, or creates tasks, refs, PRs, workflows,
+environments or permissions. Empty/partial/stale catalogs, pending work, test
+failures, inconclusive effects, 401/403 and elapsed time alone are not proof of
+Cloud absence, eligibility or failed startup.

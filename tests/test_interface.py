@@ -88,6 +88,41 @@ class InterfaceTests(unittest.TestCase):
         self.assertIn("awaiting a supported authorized backend path", tool["description"])
         self.assertTrue(tool["annotations"]["readOnlyHint"])
 
+    def test_skills_define_guarded_optional_root_fallback(self):
+        required = (
+            "cloudrepo-environment-direct:cloudrepo-environment-direct",
+            '"recommended_fallback": "cloudrepo-environment-direct"',
+            '"fallback_eligibility": "candidate_requires_root_preflight"',
+            '"source": "unknown"',
+            '"repository": "unknown"',
+            '"full_sha": "unknown"',
+            '"check_plan": "unknown"',
+            '"decision_evidence": "observed discovery outcome"',
+            "software validation",
+            "bounded trusted observation",
+            "401/403",
+            "slow elapsed wall-clock alone",
+            "never creates tasks, refs, PRs",
+        )
+        for name in ("current-discovery", "legacy-discovery"):
+            skill = (PLUGIN / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
+            normalized_skill = " ".join(skill.split())
+            frontmatter, _, _ = skill.partition("---\n#")
+            self.assertIn("Optional structured Root advisory", frontmatter)
+            for marker in required:
+                self.assertIn(marker, normalized_skill)
+
+    def test_fallback_stays_advisory_and_runtime_independent(self):
+        manifest = json.loads((PLUGIN / "plugin.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["version"], "0.4.2")
+        self.assertIn("optional structured recommendation", manifest[
+            "extensions"]["com.openai"]["interface"]["defaultPrompt"])
+        runtime_sources = "\n".join(
+            path.read_text(encoding="utf-8") for path in RUNTIME.rglob("*.py")
+        )
+        self.assertNotIn("cloudrepo-environment-direct", runtime_sources)
+        self.assertNotIn("direct CI", runtime_sources)
+
     def test_doctor_never_claims_live_coverage(self):
         result = subprocess.run([sys.executable, str(RUNTIME / 'cli.py'), 'current', 'doctor'],
                                 capture_output=True, timeout=10)

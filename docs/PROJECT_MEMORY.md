@@ -9,6 +9,13 @@
 - The Root must discover existing environments before creating any task. Runtime discovery is read-only and must not create environments, task probes or GitHub writes.
 - Provisioning and the speculative Credential Broker are separate research tracks. CloudCodeX Windows Bootstrap 0.6.6 and its three E2E gates are unchanged by this project.
 - Initial source authoring uses the user's local repository collection, with a dedicated GitHub repository and separate GSM marketplace reference.
+- v0.4.2: user approved only an optional Root-facing structured recommendation
+  to the independently published `cloudrepo-environment-direct` skill for
+  explicit software validation after bounded trusted observation fails to
+  resolve a viable, verified Cloud executor. Root independently preflights,
+  reconciles provider references and authorizes any direct CI; Discovery does
+  not import it, execute CI, create tasks/refs/PRs/workflows/environments or
+  change permissions.
 
 ## Historical source evidence, not current live state
 
@@ -39,6 +46,11 @@ This proves a tool-policy block on that attempt, **not** that the user's credent
 4. The optional MCP protocol implementation can be complete and tested independently of those missing catalog connections. Starting the server does not grant new authorization.
 5. Skills are not automatically installed into ChatGPT Chat by committing code, tagging a release or opening the GSM marketplace PR.
 6. Public marketplace PR remains draft until live acceptance/distribution criteria are met. Do not overwrite these unresolved states with fixture successes.
+7. The v0.4.2 advisory behavior is offline/documentation-contract tested only.
+   It has not validated Cloud executor absence, CI eligibility, a startup
+   failure, or direct-CI authorization. Empty/partial/stale catalogs, pending
+   work, test failures, inconclusive effects, 401/403 and elapsed time alone
+   remain insufficient evidence.
 
 ## Resume procedure
 
