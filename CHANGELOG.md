@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.3 - Valid skill frontmatter
+
+- Quote both skill description scalars so the advisory colon remains text, not a YAML mapping delimiter.
+- Add a failing-first regression for JSON-quoted YAML scalars without adding runtime dependencies.
+- Preserve all read-only discovery and optional fallback semantics; this fixes loading, not Cloud authorization.
+
 ## 0.4.2 - Optional Root-facing CloudRepo Direct advisory
 
 - Added an optional structured advisory in both independently callable skills

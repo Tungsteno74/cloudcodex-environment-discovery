@@ -1,6 +1,6 @@
 ---
 name: current-discovery
-description: Read-only Current Cloud catalog and point-by-Configuration-ID lookup; functionality available but live catalog/detail currently blocked by API authorization (401/403) pending supported OpenAI access. Optional structured Root advisory: cloudrepo-environment-direct:cloudrepo-environment-direct. Never claim a successful empty catalog.
+description: "Read-only Current Cloud catalog and point-by-Configuration-ID lookup; functionality available but live catalog/detail currently blocked by API authorization (401/403) pending supported OpenAI access. Optional structured Root advisory: cloudrepo-environment-direct:cloudrepo-environment-direct. Never claim a successful empty catalog."
 ---
 
 # Current discovery — direct Root entry point

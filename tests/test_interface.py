@@ -28,6 +28,21 @@ class InterfaceTests(unittest.TestCase):
             self.assertTrue((root / 'agents/openai.yaml').is_file())
             self.assertTrue(list((root / 'references').glob('*.md')))
 
+    def test_skill_descriptions_use_valid_quoted_yaml_scalars(self):
+        # JSON-quoted strings are valid YAML scalars; keep core dependency-free.
+        for name in ('current-discovery', 'legacy-discovery'):
+            with self.subTest(skill=name):
+                text = (PLUGIN / 'skills' / name / 'SKILL.md').read_text(encoding='utf-8')
+                self.assertTrue(text.startswith('---\n'))
+                header = text.split('---', 2)[1]
+                descriptions = [line[len('description: '):] for line in header.splitlines()
+                                if line.startswith('description: ')]
+                self.assertEqual(len(descriptions), 1)
+                description = json.loads(descriptions[0])
+                self.assertIsInstance(description, str)
+                self.assertIn('Optional structured Root advisory:', description)
+                self.assertIn('cloudrepo-environment-direct', description)
+
     def test_portable_and_compatibility_versions_match_runtime(self):
         a = json.loads((PLUGIN / 'plugin.json').read_text(encoding='utf-8'))
         b = json.loads((PLUGIN / '.codex-plugin/plugin.json').read_text(encoding='utf-8'))
@@ -114,7 +129,7 @@ class InterfaceTests(unittest.TestCase):
 
     def test_fallback_stays_advisory_and_runtime_independent(self):
         manifest = json.loads((PLUGIN / "plugin.json").read_text(encoding="utf-8"))
-        self.assertEqual(manifest["version"], "0.4.2")
+        self.assertEqual(manifest["version"], "0.4.3")
         self.assertIn("optional structured recommendation", manifest[
             "extensions"]["com.openai"]["interface"]["defaultPrompt"])
         runtime_sources = "\n".join(

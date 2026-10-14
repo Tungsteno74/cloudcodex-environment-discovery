@@ -1,6 +1,6 @@
 ---
 name: legacy-discovery
-description: Read existing Codex Cloud LEGACY environments before task creation. Use the implemented isolated native CLI selector or an approved read-only API host; return real IDs, coverage and optional GitHub correlations. Optional structured Root advisory: cloudrepo-environment-direct:cloudrepo-environment-direct. Not for Current configs or provisioning.
+description: "Read existing Codex Cloud LEGACY environments before task creation. Use the implemented isolated native CLI selector or an approved read-only API host; return real IDs, coverage and optional GitHub correlations. Optional structured Root advisory: cloudrepo-environment-direct:cloudrepo-environment-direct. Not for Current configs or provisioning."
 ---
 
 # Legacy discovery — direct Root entry point
