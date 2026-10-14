@@ -14,7 +14,7 @@ from common.configuration import DiscoveryRuntime, load_configuration
 from common.operation import Operation, OperationCancelled, OperationTimedOut, operation_scope
 
 SERVER_NAME = "cloudcodex-environment-discovery"
-VERSION = "0.4.2"
+VERSION = "0.4.3"
 MAX_RESULT_BYTES = 1024 * 1024
 TOOLS = {
     "list_legacy_environments": ("legacy", "list_environments"),

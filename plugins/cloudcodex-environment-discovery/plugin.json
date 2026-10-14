@@ -1,7 +1,7 @@
 {
     "$schema":  "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
     "name":  "cloudcodex-environment-discovery",
-    "version":  "0.4.2",
+    "version":  "0.4.3",
     "description":  "Read-only independent Codex Legacy and Current discovery. Optional structured Root advisory to cloudrepo-environment-direct; no direct CI execution. Current live catalog/detail await supported access.",
     "author":  {
                    "name":  "Tungsteno74"

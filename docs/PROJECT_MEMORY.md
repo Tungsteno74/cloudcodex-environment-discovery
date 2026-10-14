@@ -178,3 +178,9 @@ Read AGENTS.md and the actual Git status first. Reuse the current repository and
 - No new Cloud requests, session/profile mutations, credential reads,
   provisioning, release, merge, push or plugin publication in this phase.
   Remain on existing feature/current-repository-discovery-v041 branch.
+
+## 14 October 2026: observed frontmatter import regression
+
+- Observed: release 0.4.2 contains an unquoted colon-space in both SKILL.md descriptions; a real YAML parser rejects both. Prior literal-marker tests missed this loading defect.
+- Fixed in 0.4.3: preserve exact descriptions as JSON-quoted YAML scalars, synchronize package/runtime version and add a failing-first regression. No discovery transport, authorization or fallback semantics changed.
+- User requested completing private-account import and local deployment from the supplied release archives; publication is owned by Root, not by a discovery operation. Native Cloud runtime injection remains separately unverified.
